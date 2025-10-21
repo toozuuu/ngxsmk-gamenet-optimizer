@@ -1,0 +1,6 @@
+psutil>=5.9.0
+pywin32>=307
+speedtest-cli>=2.1.0
+ping3>=4.0.0
+matplotlib>=3.8.0
+numpy>=1.26.0
