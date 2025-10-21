@@ -39,26 +39,34 @@ class NetworkOptimizerApp:
         self.root = tk.Tk()
         self.root.title("NGXSMK GameNet Optimizer")
         
-        # Start in fullscreen mode by default
-        self.root.state('zoomed')  # Windows fullscreen
-        self.root.configure(bg='#0a0a0a')
-        self.root.minsize(1200, 800)
+        # Detect system capabilities for low-end PC optimization
+        self._detect_system_capabilities()
         
-        # Modern window styling
+        # Adaptive window sizing based on system capabilities
+        if self.is_low_end_pc:
+            self.root.geometry("1000x700")  # Smaller window for low-end PCs
+            self.root.minsize(800, 600)
+        else:
+            self.root.state('zoomed')  # Fullscreen for capable PCs
+            self.root.minsize(1200, 800)
+        
+        self.root.configure(bg='#0a0a0a')
         self.root.resizable(True, True)
         
         # Add fullscreen toggle functionality
-        self.is_fullscreen = True
-        self.root.bind('<F11>', self.toggle_fullscreen)
-        self.root.bind('<Escape>', self.exit_fullscreen)
+        self.is_fullscreen = not self.is_low_end_pc
+        if not self.is_low_end_pc:
+            self.root.bind('<F11>', self.toggle_fullscreen)
+            self.root.bind('<Escape>', self.exit_fullscreen)
         
         # Performance monitoring
         self._startup_time = time.time()
         self._last_gc_time = time.time()
         self._memory_usage = []
         
-        # Thread pool for background tasks
-        self.executor = ThreadPoolExecutor(max_workers=4)
+        # Adaptive thread pool based on system capabilities
+        max_workers = 2 if self.is_low_end_pc else 4
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
         
         # Weak references for memory management
         self._weak_refs = weakref.WeakSet()
@@ -96,6 +104,39 @@ class NetworkOptimizerApp:
         # Start performance monitoring
         self._start_performance_monitoring()
         
+    def _detect_system_capabilities(self):
+        """Detect system capabilities for optimization"""
+        try:
+            import psutil
+            
+            # Get system information
+            cpu_count = psutil.cpu_count()
+            memory = psutil.virtual_memory()
+            memory_gb = memory.total / (1024**3)
+            
+            # Determine if this is a low-end PC
+            self.is_low_end_pc = (
+                cpu_count < 4 or  # Less than 4 CPU cores
+                memory_gb < 8 or  # Less than 8GB RAM
+                psutil.cpu_percent(interval=0.1) > 50  # High CPU usage
+            )
+            
+            # Set optimization flags
+            self.low_resource_mode = self.is_low_end_pc
+            self.reduced_animations = self.is_low_end_pc
+            self.minimal_ui = self.is_low_end_pc
+            
+            print(f"System detected: {'Low-end PC' if self.is_low_end_pc else 'Standard PC'}")
+            print(f"CPU cores: {cpu_count}, RAM: {memory_gb:.1f}GB")
+            
+        except Exception as e:
+            print(f"System detection failed: {e}")
+            # Default to low-end PC for safety
+            self.is_low_end_pc = True
+            self.low_resource_mode = True
+            self.reduced_animations = True
+            self.minimal_ui = True
+    
     def _setup_performance_optimizations(self):
         """Setup performance optimizations"""
         # Optimize Python garbage collection
@@ -110,6 +151,9 @@ class NetworkOptimizerApp:
     def _start_performance_monitoring(self):
         """Start background performance monitoring"""
         def monitor_performance():
+            # Adaptive monitoring interval based on system capabilities
+            interval = 10 if self.is_low_end_pc else 5
+            
             while True:
                 try:
                     # Monitor memory usage
@@ -118,19 +162,21 @@ class NetworkOptimizerApp:
                     memory_mb = process.memory_info().rss / 1024 / 1024
                     self._memory_usage.append(memory_mb)
                     
-                    # Keep only last 100 measurements
-                    if len(self._memory_usage) > 100:
+                    # Keep only last 50 measurements for low-end PCs, 100 for others
+                    max_measurements = 50 if self.is_low_end_pc else 100
+                    if len(self._memory_usage) > max_measurements:
                         self._memory_usage.pop(0)
                     
-                    # Force garbage collection every 30 seconds
-                    if time.time() - self._last_gc_time > 30:
+                    # Force garbage collection more frequently on low-end PCs
+                    gc_interval = 15 if self.is_low_end_pc else 30
+                    if time.time() - self._last_gc_time > gc_interval:
                         gc.collect()
                         self._last_gc_time = time.time()
                     
-                    time.sleep(5)  # Monitor every 5 seconds
+                    time.sleep(interval)
                 except Exception as e:
                     print(f"Performance monitoring error: {e}")
-                    time.sleep(10)
+                    time.sleep(interval * 2)
         
         # Start monitoring in background thread
         monitor_thread = threading.Thread(target=monitor_performance, daemon=True)
@@ -211,20 +257,24 @@ class NetworkOptimizerApp:
         self.title_section.pack(side=tk.LEFT)
         
         # App icon/logo (using emoji as placeholder)
-        self.logo_label = tk.Label(self.title_section, text="🚀", font=('Arial', 42), 
+        logo_size = 32 if self.is_low_end_pc else 42
+        self.logo_label = tk.Label(self.title_section, text="🚀", font=('Arial', logo_size), 
                              fg=self.colors['accent'], bg=self.colors['bg_secondary'])
         self.logo_label.pack(side=tk.LEFT, padx=(0, 15))
         
         # Title and subtitle
+        title_size = 20 if self.is_low_end_pc else 26
         self.title_label = tk.Label(self.title_section, text="NGXSMK GameNet Optimizer", 
-                              font=('Arial', 26, 'bold'), fg=self.colors['text_primary'], 
+                              font=('Arial', title_size, 'bold'), fg=self.colors['text_primary'], 
                               bg=self.colors['bg_secondary'])
         self.title_label.pack(side=tk.LEFT, anchor='n')
         
-        self.subtitle_label = tk.Label(self.title_section, text="Advanced Gaming Performance Suite", 
-                                 font=('Arial', 12), fg=self.colors['text_muted'], 
-                                 bg=self.colors['bg_secondary'])
-        self.subtitle_label.pack(side=tk.LEFT, anchor='n', padx=(10, 0))
+        # Hide subtitle on low-end PCs to save space
+        if not self.is_low_end_pc:
+            self.subtitle_label = tk.Label(self.title_section, text="Advanced Gaming Performance Suite", 
+                                     font=('Arial', 12), fg=self.colors['text_muted'], 
+                                     bg=self.colors['bg_secondary'])
+            self.subtitle_label.pack(side=tk.LEFT, anchor='n', padx=(10, 0))
         
         # Status and controls section
         self.controls_section = tk.Frame(self.header_content, bg=self.colors['bg_secondary'])
@@ -319,13 +369,19 @@ class NetworkOptimizerApp:
         status_title.pack(pady=(15, 10), padx=15)
         
         # System status indicators with dynamic updates
-        self.fps_status_indicator = self.create_status_indicator(status_section, "🎮", "FPS Boost", "Ready", self.colors['success'])
-        self.network_status_indicator = self.create_status_indicator(status_section, "🌐", "Network", "Analyzing...", self.colors['warning'])
-        self.ram_status_indicator = self.create_status_indicator(status_section, "🧠", "RAM Usage", "85%", self.colors['warning'])
+        if self.is_low_end_pc:
+            # Reduced status indicators for low-end PCs
+            self.fps_status_indicator = self.create_status_indicator(status_section, "🎮", "FPS", "Ready", self.colors['success'])
+            self.ram_status_indicator = self.create_status_indicator(status_section, "🧠", "RAM", "85%", self.colors['warning'])
+        else:
+            # Full status indicators for capable PCs
+            self.fps_status_indicator = self.create_status_indicator(status_section, "🎮", "FPS Boost", "Ready", self.colors['success'])
+            self.network_status_indicator = self.create_status_indicator(status_section, "🌐", "Network", "Analyzing...", self.colors['warning'])
+            self.ram_status_indicator = self.create_status_indicator(status_section, "🧠", "RAM Usage", "85%", self.colors['warning'])
         self.cpu_status_indicator = self.create_status_indicator(status_section, "⚡", "CPU Load", "45%", self.colors['success'])
         
-        # Start real-time monitoring
-        self.start_status_monitoring()
+        # Start real-time monitoring after a short delay to ensure UI is ready
+        self.root.after(1000, self.start_status_monitoring)
         
         # Main content area
         main_content = tk.Frame(content_container, bg=self.colors['bg_primary'])
@@ -395,38 +451,297 @@ class NetworkOptimizerApp:
     
     def quick_optimize_all(self):
         """Quick optimize all systems"""
-        self.status_label.config(text="Optimizing All Systems...", fg=self.colors['warning'])
-        self.status_indicator.config(fg=self.colors['warning'])
-        # Implementation would go here
-        self.root.after(2000, lambda: self.status_label.config(text="System Ready", fg=self.colors['text_primary']))
-        self.root.after(2000, lambda: self.status_indicator.config(fg=self.colors['success']))
+        try:
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Optimizing All Systems...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
+            # Run optimization in background
+            def run_optimization():
+                try:
+                    # FPS optimization
+                    fps_results = self.fps_boost.optimize_game_performance(
+                        priority_boost=True,
+                        cpu_optimization=True,
+                        gpu_optimization=True
+                    )
+                    
+                    # RAM cleaning
+                    ram_freed = self.ram_cleaner.clean_memory()
+                    
+                    # Update UI in main thread
+                    self.root.after(0, lambda: self._complete_quick_optimize_all(fps_results, ram_freed))
+                    
+                except Exception as e:
+                    self.root.after(0, lambda: self._handle_quick_optimize_error(str(e)))
+            
+            # Start optimization in background
+            import threading
+            threading.Thread(target=run_optimization, daemon=True).start()
+            
+        except Exception as e:
+            self._handle_quick_optimize_error(str(e))
+    
+    def _complete_quick_optimize_all(self, fps_results, ram_freed):
+        """Complete quick optimization with results"""
+        try:
+            # Update status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="All Systems Optimized", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"Quick optimization completed successfully!\n\n" \
+                     f"FPS Optimization:\n" \
+                     f"• Processes Optimized: {fps_results.get('processes_optimized', 0)}\n" \
+                     f"• System Optimized: {fps_results.get('system_optimized', False)}\n" \
+                     f"• GPU Optimized: {fps_results.get('gpu_optimized', False)}\n\n" \
+                     f"RAM Cleaning:\n" \
+                     f"• Memory Freed: {ram_freed:.2f} MB\n\n" \
+                     f"Your system is now optimized for gaming!"
+            
+            self.show_result_popup(
+                "Quick Optimization Complete", 
+                "All systems have been optimized successfully!",
+                "success",
+                details
+            )
+            
+        except Exception as e:
+            print(f"Error completing quick optimization: {e}")
+    
+    def _handle_quick_optimize_error(self, error_msg):
+        """Handle quick optimization errors"""
+        try:
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Optimization Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
+            self.show_result_popup(
+                "Quick Optimization Failed", 
+                "An error occurred during optimization.",
+                "error",
+                f"Error details: {error_msg}"
+            )
+        except Exception as e:
+            print(f"Error handling quick optimization error: {e}")
     
     def quick_clean_ram(self):
         """Quick RAM cleanup"""
-        self.status_label.config(text="Cleaning RAM...", fg=self.colors['warning'])
-        self.status_indicator.config(fg=self.colors['warning'])
-        # Implementation would go here
-        self.root.after(1500, lambda: self.status_label.config(text="RAM Cleaned", fg=self.colors['success']))
-        self.root.after(2000, lambda: self.status_label.config(text="System Ready", fg=self.colors['text_primary']))
-        self.root.after(2000, lambda: self.status_indicator.config(fg=self.colors['success']))
+        try:
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Cleaning RAM...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
+            # Run RAM cleaning in background
+            def run_ram_clean():
+                try:
+                    freed_memory = self.ram_cleaner.clean_memory()
+                    self.root.after(0, lambda: self._complete_quick_ram_clean(freed_memory))
+                except Exception as e:
+                    self.root.after(0, lambda: self._handle_quick_ram_clean_error(str(e)))
+            
+            # Start RAM cleaning in background
+            import threading
+            threading.Thread(target=run_ram_clean, daemon=True).start()
+            
+        except Exception as e:
+            self._handle_quick_ram_clean_error(str(e))
+    
+    def _complete_quick_ram_clean(self, freed_memory):
+        """Complete quick RAM cleaning with results"""
+        try:
+            # Update status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="RAM Cleaned", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"RAM cleaning completed successfully!\n\n" \
+                     f"Memory freed: {freed_memory:.2f} MB\n" \
+                     f"System performance improved\n" \
+                     f"Background processes optimized\n" \
+                     f"Memory usage reduced"
+            
+            self.show_result_popup(
+                "RAM Cleaning Complete", 
+                f"Successfully freed {freed_memory:.2f} MB of RAM!",
+                "success",
+                details
+            )
+            
+        except Exception as e:
+            print(f"Error completing RAM clean: {e}")
+    
+    def _handle_quick_ram_clean_error(self, error_msg):
+        """Handle quick RAM cleaning errors"""
+        try:
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="RAM Clean Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
+            self.show_result_popup(
+                "RAM Cleaning Failed", 
+                "An error occurred during RAM cleaning.",
+                "error",
+                f"Error details: {error_msg}"
+            )
+        except Exception as e:
+            print(f"Error handling RAM clean error: {e}")
     
     def quick_test_network(self):
         """Quick network test"""
-        self.status_label.config(text="Testing Network...", fg=self.colors['warning'])
-        self.status_indicator.config(fg=self.colors['warning'])
-        # Implementation would go here
-        self.root.after(3000, lambda: self.status_label.config(text="Network Test Complete", fg=self.colors['success']))
-        self.root.after(4000, lambda: self.status_label.config(text="System Ready", fg=self.colors['text_primary']))
-        self.root.after(4000, lambda: self.status_indicator.config(fg=self.colors['success']))
+        try:
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Testing Network...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
+            # Run network test in background
+            def run_network_test():
+                try:
+                    # Run network analysis
+                    results = self.network_analyzer.analyze_network()
+                    
+                    # Update UI in main thread
+                    self.root.after(0, lambda: self._complete_quick_network_test(results))
+                    
+                except Exception as e:
+                    self.root.after(0, lambda: self._handle_quick_network_test_error(str(e)))
+            
+            # Start network test in background
+            import threading
+            threading.Thread(target=run_network_test, daemon=True).start()
+            
+        except Exception as e:
+            self._handle_quick_network_test_error(str(e))
+    
+    def _complete_quick_network_test(self, results):
+        """Complete quick network test with results"""
+        try:
+            # Update status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Network Test Complete", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"Network test completed successfully!\n\n" \
+                     f"Connection Status: {results.get('connection_status', 'Unknown')}\n" \
+                     f"Latency: {results.get('latency', 'N/A')} ms\n" \
+                     f"Download Speed: {results.get('download_speed', 'N/A')} Mbps\n" \
+                     f"Upload Speed: {results.get('upload_speed', 'N/A')} Mbps\n" \
+                     f"Packet Loss: {results.get('packet_loss', 'N/A')}%"
+            
+            self.show_result_popup(
+                "Network Test Complete", 
+                "Network analysis completed successfully!",
+                "success",
+                details
+            )
+            
+        except Exception as e:
+            print(f"Error completing network test: {e}")
+    
+    def _handle_quick_network_test_error(self, error_msg):
+        """Handle quick network test errors"""
+        try:
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Network Test Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
+            self.show_result_popup(
+                "Network Test Failed", 
+                "An error occurred during network testing.",
+                "error",
+                f"Error details: {error_msg}"
+            )
+        except Exception as e:
+            print(f"Error handling network test error: {e}")
     
     def quick_gaming_mode(self):
         """Quick gaming mode activation"""
-        self.status_label.config(text="Activating Gaming Mode...", fg=self.colors['warning'])
-        self.status_indicator.config(fg=self.colors['warning'])
-        # Implementation would go here
-        self.root.after(2500, lambda: self.status_label.config(text="Gaming Mode Active", fg=self.colors['success']))
-        self.root.after(3000, lambda: self.status_label.config(text="System Ready", fg=self.colors['text_primary']))
-        self.root.after(3000, lambda: self.status_indicator.config(fg=self.colors['success']))
+        try:
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Activating Gaming Mode...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
+            # Run gaming mode activation in background
+            def run_gaming_mode():
+                try:
+                    # Activate gaming optimizations
+                    gaming_results = self.gaming_optimizer.optimize_for_gaming()
+                    
+                    # Update UI in main thread
+                    self.root.after(0, lambda: self._complete_quick_gaming_mode(gaming_results))
+                    
+                except Exception as e:
+                    self.root.after(0, lambda: self._handle_quick_gaming_mode_error(str(e)))
+            
+            # Start gaming mode activation in background
+            import threading
+            threading.Thread(target=run_gaming_mode, daemon=True).start()
+            
+        except Exception as e:
+            self._handle_quick_gaming_mode_error(str(e))
+    
+    def _complete_quick_gaming_mode(self, results):
+        """Complete quick gaming mode activation with results"""
+        try:
+            # Update status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Gaming Mode Active", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"Gaming mode activated successfully!\n\n" \
+                     f"Optimizations Applied:\n" \
+                     f"• Process Priority: {results.get('process_priority', 'High')}\n" \
+                     f"• CPU Optimization: {results.get('cpu_optimized', False)}\n" \
+                     f"• GPU Optimization: {results.get('gpu_optimized', False)}\n" \
+                     f"• Background Apps: {results.get('background_apps_optimized', 0)} optimized\n" \
+                     f"• System Tweaks: {results.get('system_tweaks', 0)} applied\n\n" \
+                     f"Your system is now optimized for gaming!"
+            
+            self.show_result_popup(
+                "Gaming Mode Activated", 
+                "Gaming optimizations have been applied successfully!",
+                "success",
+                details
+            )
+            
+        except Exception as e:
+            print(f"Error completing gaming mode: {e}")
+    
+    def _handle_quick_gaming_mode_error(self, error_msg):
+        """Handle quick gaming mode errors"""
+        try:
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Gaming Mode Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
+            self.show_result_popup(
+                "Gaming Mode Failed", 
+                "An error occurred during gaming mode activation.",
+                "error",
+                f"Error details: {error_msg}"
+            )
+        except Exception as e:
+            print(f"Error handling gaming mode error: {e}")
     
     def optimize_fps(self):
         """Optimize FPS settings"""
@@ -739,9 +1054,15 @@ class NetworkOptimizerApp:
     
     def start_status_monitoring(self):
         """Start optimized real-time status monitoring"""
-        self.update_system_status()
-        # Schedule next update in 1 second for better responsiveness
-        self.root.after(1000, self.start_status_monitoring)
+        try:
+            self.update_system_status()
+            # Adaptive update interval based on system capabilities
+            interval = 2000 if self.is_low_end_pc else 1000  # 2 seconds for low-end PCs
+            self.root.after(interval, self.start_status_monitoring)
+        except Exception as e:
+            print(f"Status monitoring error: {e}")
+            # Retry after a longer interval
+            self.root.after(5000, self.start_status_monitoring)
     
     def update_system_status(self):
         """Update system status indicators - Optimized version"""
@@ -749,24 +1070,38 @@ class NetworkOptimizerApp:
             import psutil
             
             # Use cached metrics for better performance
-            if not hasattr(self, '_last_metrics') or time.time() - self._last_metrics['time'] > 0.5:
+            cache_interval = 1.0 if self.is_low_end_pc else 0.5
+            if not hasattr(self, '_last_metrics') or time.time() - self._last_metrics['time'] > cache_interval:
                 self._last_metrics = {
                     'memory': psutil.virtual_memory(),
                     'cpu_percent': psutil.cpu_percent(interval=0.1),
                     'time': time.time()
                 }
+                print(f"Updated metrics: RAM {self._last_metrics['memory'].percent:.1f}%, CPU {self._last_metrics['cpu_percent']:.1f}%")  # Debug print
             
             metrics = self._last_metrics
             
-            # Batch update all status indicators
-            self._batch_update_status_indicators({
-                'ram': (f"{metrics['memory'].percent}%", self._get_status_color(metrics['memory'].percent, [70, 90])),
-                'cpu': (f"{metrics['cpu_percent']}%", self._get_status_color(metrics['cpu_percent'], [50, 80])),
+            # Prepare status updates
+            status_updates = {
+                'ram': (f"{metrics['memory'].percent:.1f}%", self._get_status_color(metrics['memory'].percent, [70, 90])),
                 'fps': ("Active" if self.is_optimizing else "Ready", self.colors['success'] if not self.is_optimizing else self.colors['warning'])
-            })
+            }
+            
+            # Add CPU status for capable PCs
+            if not self.is_low_end_pc:
+                status_updates['cpu'] = (f"{metrics['cpu_percent']:.1f}%", self._get_status_color(metrics['cpu_percent'], [50, 80]))
+            
+            # Update status indicators
+            self._batch_update_status_indicators(status_updates)
+            
+            # Update main status text if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text=f"RAM: {metrics['memory'].percent:.1f}% | CPU: {metrics['cpu_percent']:.1f}%", fg=self.colors['text_primary'])
             
         except Exception as e:
             print(f"Status update error: {e}")
+            import traceback
+            traceback.print_exc()
     
     def _get_status_color(self, value, thresholds):
         """Get status color based on value and thresholds"""
@@ -784,12 +1119,16 @@ class NetworkOptimizerApp:
                 indicator_name = f'{status_type}_status_indicator'
                 if hasattr(self, indicator_name):
                     indicator = getattr(self, indicator_name)
-                    indicator['value_label'].config(text=text, fg=color)
-                    indicator['icon_label'].config(fg=color)
-        except Exception as e:
-            print(f"Batch status update error: {e}")
+                    if isinstance(indicator, dict) and 'value_label' in indicator:
+                        indicator['value_label'].config(text=text, fg=color)
+                        if 'icon_label' in indicator:
+                            indicator['icon_label'].config(fg=color)
+                    else:
+                        print(f"Invalid indicator structure for {indicator_name}")
+                else:
+                    print(f"Status indicator {indicator_name} not found")
             
-            # Update Network status
+            # Update Network status separately
             try:
                 # Simple network test
                 import socket
@@ -800,11 +1139,17 @@ class NetworkOptimizerApp:
                 network_status = "Disconnected"
                 network_color = self.colors['error']
             
-            self.network_status_indicator['value_label'].config(text=network_status, fg=network_color)
-            self.network_status_indicator['icon_label'].config(fg=network_color)
+            # Update network status if indicator exists
+            if hasattr(self, 'network_status_indicator'):
+                if isinstance(self.network_status_indicator, dict) and 'value_label' in self.network_status_indicator:
+                    self.network_status_indicator['value_label'].config(text=network_status, fg=network_color)
+                    if 'icon_label' in self.network_status_indicator:
+                        self.network_status_indicator['icon_label'].config(fg=network_color)
             
         except Exception as e:
-            print(f"Status update error: {e}")
+            print(f"Batch status update error: {e}")
+            import traceback
+            traceback.print_exc()
         
     def create_fps_boost_tab(self):
         """Create modern FPS Boost tab"""
@@ -1318,15 +1663,33 @@ class NetworkOptimizerApp:
     def clean_ram(self):
         """Clean RAM memory"""
         try:
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Cleaning RAM...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
+            # Clean RAM memory
+            print("Starting RAM cleaning...")  # Debug print
             freed_memory = self.ram_cleaner.clean_memory()
+            print(f"RAM cleaning completed, freed: {freed_memory:.2f} MB")  # Debug print
+            
+            # Update memory info
             self.update_memory_info()
+            
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="RAM Cleaned", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
             
             # Show result popup
             details = f"RAM cleaning completed successfully!\n\n" \
                      f"Memory freed: {freed_memory:.2f} MB\n" \
                      f"System performance improved\n" \
                      f"Background processes optimized\n" \
-                     f"Memory usage reduced"
+                     f"Memory usage reduced\n\n" \
+                     f"Your system memory has been optimized for better performance!"
             
             self.show_result_popup(
                 "RAM Cleaning Complete", 
@@ -1334,23 +1697,46 @@ class NetworkOptimizerApp:
                 "success",
                 details
             )
+            
         except Exception as e:
+            print(f"RAM cleaning error: {e}")  # Debug print
+            
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="RAM Clean Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
             # Show error popup
             self.show_result_popup(
                 "RAM Cleaning Failed", 
                 "An error occurred during RAM cleaning.",
                 "error",
-                f"Error details: {str(e)}"
+                f"Error details: {str(e)}\n\nPlease try again or check system permissions."
             )
             
     def update_memory_info(self):
         """Update memory information display"""
         try:
             memory_info = self.ram_cleaner.get_memory_info()
-            self.memory_info.config(state=tk.NORMAL)
-            self.memory_info.delete(1.0, tk.END)
-            self.memory_info.insert(tk.END, memory_info)
-            self.memory_info.config(state=tk.DISABLED)
+            
+            # Format memory info as text
+            memory_text = f"Total Memory: {memory_info['total_memory']:.1f} GB\n"
+            memory_text += f"Available: {memory_info['available_memory']:.1f} GB\n"
+            memory_text += f"Used: {memory_info['used_memory']:.1f} GB\n"
+            memory_text += f"Usage: {memory_info['memory_percent']:.1f}%"
+            
+            # Update memory info display if it exists
+            if hasattr(self, 'memory_info'):
+                self.memory_info.config(state=tk.NORMAL)
+                self.memory_info.delete(1.0, tk.END)
+                self.memory_info.insert(tk.END, memory_text)
+                self.memory_info.config(state=tk.DISABLED)
+            
+            # Update status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text=f"RAM: {memory_info['memory_percent']:.1f}%", fg=self.colors['text_primary'])
+                
         except Exception as e:
             print(f"Failed to update memory info: {e}")
             
@@ -1621,11 +2007,32 @@ class NetworkOptimizerApp:
             language = settings.get('general', {}).get('language', 'en')
             self.apply_language(language)
             
+            # Apply low-resource mode if enabled
+            if settings.get('general', {}).get('low_resource_mode', False):
+                self.enable_low_resource_mode()
+            
             # Apply other settings
             self.apply_other_settings(settings)
             
         except Exception as e:
             print(f"Failed to load settings: {e}")
+    
+    def enable_low_resource_mode(self):
+        """Enable low-resource mode for better performance on low-end PCs"""
+        try:
+            self.low_resource_mode = True
+            self.reduced_animations = True
+            self.minimal_ui = True
+            
+            # Reduce update frequencies
+            if hasattr(self, 'start_status_monitoring'):
+                # Restart monitoring with reduced frequency
+                pass
+            
+            print("Low-resource mode enabled")
+            
+        except Exception as e:
+            print(f"Failed to enable low-resource mode: {e}")
     
     def apply_theme(self, theme):
         """Apply theme to the application"""

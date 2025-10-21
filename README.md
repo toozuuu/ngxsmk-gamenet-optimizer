@@ -8,8 +8,10 @@
 [![GitHub stars](https://img.shields.io/github/stars/toozuuu/ngxsmk-gamenet-optimizer.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/toozuuu/ngxsmk-gamenet-optimizer.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/network)
 [![Downloads](https://img.shields.io/badge/Downloads-Latest-blue.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/releases)
+[![UI](https://img.shields.io/badge/UI-Modern%20Dark%20Theme-00ff88.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer)
+[![Performance](https://img.shields.io/badge/Performance-Optimized%20for%20All%20PCs-00d4ff.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer)
 
-> **A powerful, open-source gaming optimization suite that enhances your gaming experience through advanced network optimization, system tuning, and performance monitoring.**
+> **A powerful, open-source gaming optimization suite with modern UI that enhances your gaming experience through advanced network optimization, system tuning, and real-time performance monitoring.**
 
 ## 🚀 Quick Start
 
@@ -37,7 +39,7 @@ python main.py
 
 ## ✨ What is NGXSMK GameNet Optimizer?
 
-NGXSMK GameNet Optimizer is a comprehensive, open-source gaming optimization tool designed to enhance your gaming experience through intelligent system and network optimization. Unlike commercial alternatives, it's completely free, open-source, and respects your privacy.
+NGXSMK GameNet Optimizer is a comprehensive, open-source gaming optimization tool with a modern dark theme UI designed to enhance your gaming experience through intelligent system and network optimization. Unlike commercial alternatives, it's completely free, open-source, and respects your privacy.
 
 ### 🎯 Key Benefits
 
@@ -47,20 +49,31 @@ NGXSMK GameNet Optimizer is a comprehensive, open-source gaming optimization too
 - **⚡ Smart Traffic** - Prioritize gaming traffic over background apps
 - **🎮 Game-Specific** - Tailored optimizations for popular games
 - **🔒 Privacy-First** - No data collection, everything runs locally
+- **🎨 Modern UI** - Sleek dark theme with adaptive sizing for all PCs
+- **📊 Real-time Monitoring** - Live system status and performance metrics
 
 ## 🌟 Features
+
+### 🎨 Modern UI & User Experience
+- **Adaptive Window Sizing** - Automatically adjusts for low-end and high-end PCs
+- **Modern Dark Theme** - Sleek gaming-focused interface with green accents
+- **Real-time Status Monitoring** - Live system metrics with color-coded indicators
+- **Glassmorphism Effects** - Modern semi-transparent elements for depth
+- **Responsive Design** - Optimized for all screen sizes and system capabilities
 
 ### 🎮 FPS Boost & Game Optimization
 - **Intelligent Game Detection** - Automatically detects and optimizes running games
 - **Process Priority Management** - Sets high priority for gaming applications
 - **CPU & GPU Optimization** - Advanced system tuning for maximum performance
 - **Real-time Monitoring** - Live FPS and system metrics display
+- **Quick Action Buttons** - One-click optimization for common tasks
 
 ### 🌐 Network Analyzer
 - **Multi-Server Testing** - Test latency to gaming servers worldwide
-- **Bandwidth Analysis** - Comprehensive speed testing and analysis
+- **Bandwidth Analysis** - Comprehensive speed testing and analysis with realistic estimates
 - **Gaming Server Optimization** - Specialized testing for popular games
 - **Connection Quality Assessment** - Detailed network quality scoring
+- **Real-time Network Monitoring** - Live connection status and performance metrics
 
 ### 🔄 Multi-Connection Manager
 - **Load Balancing** - Distribute traffic across multiple connections
@@ -75,16 +88,18 @@ NGXSMK GameNet Optimizer is a comprehensive, open-source gaming optimization too
 - **Real-time Monitoring** - Live bandwidth usage tracking
 
 ### 🧹 Memory Optimizer
-- **Smart RAM Cleaning** - Intelligent memory management
+- **Smart RAM Cleaning** - Intelligent memory management with detailed feedback
 - **Process Optimization** - Close unnecessary background applications
 - **Auto-cleanup** - Automatic memory optimization
 - **Gaming-Specific Tuning** - Optimized for gaming workloads
+- **Real-time Memory Monitoring** - Live RAM usage with color-coded status indicators
 
 ### 🎯 League of Legends Optimizer
 - **Dedicated LoL Support** - Specialized optimizations for League of Legends
 - **Server Latency Testing** - Test ping to all major LoL servers (NA, EUW, EUNE, KR, BR, SG)
 - **Best Server Selection** - Automatically find your optimal server
 - **Real-time Performance** - Monitor LoL-specific metrics
+- **Accurate Latency Results** - Fixed server testing with proper ping parsing
 
 ## 🎮 Supported Games
 
@@ -147,18 +162,21 @@ run.bat
 ## 📖 Usage
 
 ### Basic Usage
-1. **Launch** the application using `python launcher.py`
-2. **Click "Start Optimization"** for automatic optimization
+1. **Launch** the application using `python main.py` or run the executable
+2. **Use Quick Actions** for one-click optimization (Optimize All, Clean RAM, Test Network, Gaming Mode)
 3. **Use individual tabs** to configure specific features
-4. **Monitor performance** in real-time
+4. **Monitor performance** in real-time with live status indicators
+5. **View results** with detailed popup modals after each action
 
 ### Advanced Configuration
-- **FPS Boost**: Configure game-specific optimizations
-- **Network Analyzer**: Test and optimize your connection
-- **Multi Internet**: Manage multiple connections
-- **Traffic Shaper**: Control bandwidth allocation
-- **RAM Cleaner**: Optimize memory usage
-- **LoL Optimizer**: Specialized League of Legends features
+- **FPS Boost**: Configure game-specific optimizations with real-time monitoring
+- **Network Analyzer**: Test and optimize your connection with detailed analysis
+- **Multi Internet**: Manage multiple connections with load balancing
+- **Traffic Shaper**: Control bandwidth allocation and QoS settings
+- **RAM Cleaner**: Optimize memory usage with detailed feedback
+- **LoL Optimizer**: Specialized League of Legends features with server testing
+- **Settings**: Configure theme, language, and system preferences
+- **About**: View version information and project details
 
 ## 🏗️ Project Structure
 
@@ -258,6 +276,9 @@ This project uses GitHub Actions for automated building, testing, and deployment
 - **Less Lag** - Traffic shaping and priority management
 - **Better Stability** - Memory optimization and process management
 - **Optimal Server Selection** - Find the best gaming servers
+- **Real-time Monitoring** - Live system status with color-coded indicators
+- **Adaptive Performance** - Optimized for both low-end and high-end PCs
+- **Quick Actions** - One-click optimization for common tasks
 
 ## 🔒 Privacy & Security
 
@@ -315,6 +336,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔮 Roadmap
 
+- [x] Modern UI with dark theme
+- [x] Real-time system monitoring
+- [x] Adaptive window sizing for all PCs
+- [x] Quick action buttons
+- [x] Enhanced RAM cleaning with feedback
+- [x] Improved network testing
+- [x] Fixed LoL server latency testing
 - [ ] macOS support
 - [ ] Additional game support
 - [ ] Advanced network protocols

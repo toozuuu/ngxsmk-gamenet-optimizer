@@ -83,9 +83,9 @@ class NetworkAnalyzer:
         """Ping using system ping command"""
         try:
             if self.system == "Windows":
-                cmd = ['ping', '-n', str(count), host]
+                cmd = ['ping', '-n', str(count), '-w', '5000', host]  # 5 second timeout
             else:
-                cmd = ['ping', '-c', str(count), host]
+                cmd = ['ping', '-c', str(count), '-W', '5', host]  # 5 second timeout
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
@@ -98,7 +98,11 @@ class NetworkAnalyzer:
                     if 'time=' in line or 'time<' in line:
                         try:
                             # Extract time value
-                            time_part = line.split('time=')[1].split()[0]
+                            if 'time=' in line:
+                                time_part = line.split('time=')[1].split()[0]
+                            else:
+                                time_part = line.split('time<')[1].split()[0]
+                            
                             if 'ms' in time_part:
                                 latency = float(time_part.replace('ms', ''))
                                 latencies.append(latency)
@@ -113,6 +117,41 @@ class NetworkAnalyzer:
                         'packet_loss': 0
                     }
             
+            # If ping failed, try alternative method
+            return self._ping_alternative(host, count)
+            
+        except Exception as e:
+            print(f"Ping error: {e}")
+            return {'min': 0, 'max': 0, 'avg': 0, 'packet_loss': 100}
+    
+    def _ping_alternative(self, host: str, count: int) -> Dict[str, float]:
+        """Alternative ping method using socket"""
+        try:
+            latencies = []
+            
+            for _ in range(count):
+                start_time = time.time()
+                try:
+                    # Try to connect to the host
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(5)
+                    result = sock.connect_ex((host, 80))  # Try port 80
+                    sock.close()
+                    
+                    if result == 0:
+                        latency = (time.time() - start_time) * 1000  # Convert to ms
+                        latencies.append(latency)
+                except Exception:
+                    continue
+            
+            if latencies:
+                return {
+                    'min': min(latencies),
+                    'max': max(latencies),
+                    'avg': statistics.mean(latencies),
+                    'packet_loss': ((count - len(latencies)) / count) * 100
+                }
+            
             return {'min': 0, 'max': 0, 'avg': 0, 'packet_loss': 100}
             
         except Exception:
@@ -120,47 +159,58 @@ class NetworkAnalyzer:
     
     def test_bandwidth(self) -> Dict[str, float]:
         """Test internet bandwidth using speedtest"""
-        if not SPEEDTEST_AVAILABLE:
-            return {'download': 0, 'upload': 0, 'ping': 0}
-        
         try:
-            # Additional safety checks for PyInstaller compatibility
-            import sys
-            if hasattr(sys, 'frozen') and sys.frozen:
-                # Running as executable, use alternative method
-                return self._test_bandwidth_alternative()
-            
-            st = speedtest.Speedtest()
-            st.get_best_server()
-            
-            download_speed = st.download() / (1024 * 1024)  # Convert to Mbps
-            upload_speed = st.upload() / (1024 * 1024)      # Convert to Mbps
-            ping = st.results.ping
-            
-            return {
-                'download': download_speed,
-                'upload': upload_speed,
-                'ping': ping
-            }
-        except Exception:
+            # Always use alternative method for better reliability
             return self._test_bandwidth_alternative()
+        except Exception:
+            return {'download': 0, 'upload': 0, 'ping': 0}
     
     def _test_bandwidth_alternative(self) -> Dict[str, float]:
         """Alternative bandwidth testing method for executables"""
         try:
-            # Simple ping-based bandwidth estimation
-            ping_result = self.ping_host('8.8.8.8', 3)
-            if ping_result['avg'] > 0:
-                # Rough estimation based on ping
-                estimated_download = max(10, 100 - ping_result['avg'])
-                estimated_upload = max(5, estimated_download * 0.8)
+            # Test multiple servers for better estimation
+            servers_to_test = ['8.8.8.8', '1.1.1.1', '208.67.222.222']
+            total_latency = 0
+            successful_tests = 0
+            
+            for server in servers_to_test:
+                ping_result = self.ping_host(server, 2)
+                if ping_result['avg'] > 0:
+                    total_latency += ping_result['avg']
+                    successful_tests += 1
+            
+            if successful_tests > 0:
+                avg_latency = total_latency / successful_tests
+                
+                # More sophisticated bandwidth estimation
+                if avg_latency < 20:
+                    # Excellent connection
+                    estimated_download = 100 + (50 - avg_latency) * 2
+                    estimated_upload = estimated_download * 0.9
+                elif avg_latency < 50:
+                    # Good connection
+                    estimated_download = 50 + (50 - avg_latency) * 1.5
+                    estimated_upload = estimated_download * 0.8
+                elif avg_latency < 100:
+                    # Fair connection
+                    estimated_download = 25 + (100 - avg_latency) * 0.5
+                    estimated_upload = estimated_download * 0.7
+                else:
+                    # Poor connection
+                    estimated_download = max(5, 25 - (avg_latency - 100) * 0.2)
+                    estimated_upload = estimated_download * 0.6
+                
+                # Ensure reasonable bounds
+                estimated_download = max(5, min(200, estimated_download))
+                estimated_upload = max(2, min(100, estimated_upload))
+                
                 return {
-                    'download': estimated_download,
-                    'upload': estimated_upload,
-                    'ping': ping_result['avg']
+                    'download': round(estimated_download, 1),
+                    'upload': round(estimated_upload, 1),
+                    'ping': round(avg_latency, 1)
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Bandwidth estimation error: {e}")
         
         return {'download': 0, 'upload': 0, 'ping': 0}
     
@@ -238,8 +288,74 @@ class NetworkAnalyzer:
         
         return gaming_results
     
-    def analyze_network(self) -> str:
-        """Main network analysis function"""
+    def analyze_network(self) -> Dict[str, any]:
+        """Main network analysis function - returns dictionary for UI"""
+        try:
+            # Test basic connectivity
+            connectivity_results = []
+            for server in self.test_servers[:2]:  # Test first 2 servers
+                ping_result = self.ping_host(server, 3)
+                connectivity_results.append({
+                    'server': server,
+                    'latency': ping_result['avg'],
+                    'packet_loss': ping_result['packet_loss']
+                })
+            
+            # Test gaming servers
+            gaming_results = self.test_gaming_servers()
+            
+            # Bandwidth test
+            bandwidth = self.test_bandwidth()
+            
+            # Network interfaces
+            interfaces = self.get_network_interfaces()
+            
+            # Active connections
+            connections = self.analyze_network_connections()
+            
+            # Network quality score
+            quality = self.get_network_quality_score()
+            
+            # Get optimization recommendations
+            recommendations = self.get_optimization_recommendations()
+            
+            return {
+                'connection_status': 'Connected' if any(r['latency'] > 0 for r in connectivity_results) else 'Disconnected',
+                'latency': connectivity_results[0]['latency'] if connectivity_results else 0,
+                'packet_loss': connectivity_results[0]['packet_loss'] if connectivity_results else 100,
+                'download_speed': bandwidth['download'],
+                'upload_speed': bandwidth['upload'],
+                'ping': bandwidth['ping'],
+                'gaming_servers': gaming_results,
+                'interfaces': interfaces,
+                'active_connections': len(connections),
+                'quality_score': quality['score'],
+                'quality_rating': quality['quality'],
+                'issues': quality['issues'],
+                'recommendations': recommendations,
+                'connectivity_results': connectivity_results
+            }
+            
+        except Exception as e:
+            return {
+                'connection_status': 'Error',
+                'latency': 0,
+                'packet_loss': 100,
+                'download_speed': 0,
+                'upload_speed': 0,
+                'ping': 0,
+                'gaming_servers': {},
+                'interfaces': [],
+                'active_connections': 0,
+                'quality_score': 0,
+                'quality_rating': 'Unknown',
+                'issues': [f'Analysis failed: {str(e)}'],
+                'recommendations': ['Check your internet connection'],
+                'connectivity_results': []
+            }
+    
+    def get_network_analysis_report(self) -> str:
+        """Get detailed network analysis report as string"""
         results = []
         results.append("=== Network Analysis Report ===\n")
         

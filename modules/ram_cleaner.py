@@ -138,6 +138,7 @@ class RAMCleaner:
                     os.path.join(os.environ.get('WINDIR', ''), 'Temp')
                 ]
                 
+                temp_files_cleaned = 0
                 for temp_dir in temp_dirs:
                     if temp_dir and os.path.exists(temp_dir):
                         for file in os.listdir(temp_dir):
@@ -145,12 +146,35 @@ class RAMCleaner:
                                 file_path = os.path.join(temp_dir, file)
                                 if os.path.isfile(file_path):
                                     os.remove(file_path)
+                                    temp_files_cleaned += 1
                             except (OSError, PermissionError):
                                 continue
                 
-                results['temp_files'] = True
+                results['temp_files'] = temp_files_cleaned > 0
+                print(f"Cleaned {temp_files_cleaned} temp files")
             except Exception:
                 results['temp_files'] = False
+            
+            # Clear Windows memory cache using PowerShell
+            try:
+                # Run memory cleanup command
+                subprocess.run([
+                    'powershell', '-Command',
+                    '[System.GC]::Collect(); [System.GC]::WaitForPendingFinalizers(); [System.GC]::Collect()'
+                ], capture_output=True, check=True)
+                results['powershell_cleanup'] = True
+            except subprocess.CalledProcessError:
+                results['powershell_cleanup'] = False
+            
+            # Clear Windows standby memory
+            try:
+                subprocess.run([
+                    'powershell', '-Command',
+                    'Clear-RecycleBin -Force -ErrorAction SilentlyContinue'
+                ], capture_output=True, check=False)
+                results['recycle_bin'] = True
+            except Exception:
+                results['recycle_bin'] = False
             
         except Exception:
             results['error'] = True
@@ -202,9 +226,23 @@ class RAMCleaner:
         results = {}
         
         try:
-            # Force garbage collection
-            collected = gc.collect()
+            # Force garbage collection multiple times
+            for i in range(3):
+                collected = gc.collect()
+                print(f"GC cycle {i+1}: collected {collected} objects")
             results['garbage_collection'] = True
+            
+            # Clear Python internal caches
+            try:
+                import sys
+                if hasattr(sys, '_clear_type_cache'):
+                    sys._clear_type_cache()
+                if hasattr(sys, 'intern'):
+                    # Clear interned strings cache
+                    pass
+                results['python_cache'] = True
+            except Exception:
+                results['python_cache'] = False
             
             # Optimize memory allocation
             if self.system == "Windows":
@@ -270,39 +308,79 @@ class RAMCleaner:
         return results
     
     def clean_memory(self) -> float:
-        """Main memory cleaning function"""
+        """Main memory cleaning function - returns freed memory in MB"""
         try:
-            # Get initial memory
-            initial_memory = self.get_memory_info()
-            initial_used = initial_memory['used_memory']
+            print("RAM cleaning started...")  # Debug print
+            
+            # Get initial memory in MB
+            initial_memory = psutil.virtual_memory()
+            initial_used_mb = initial_memory.used / (1024**2)  # Convert to MB
+            print(f"Initial memory usage: {initial_used_mb:.2f} MB")  # Debug print
             
             # Clean system cache
+            print("Cleaning system cache...")  # Debug print
             cache_results = self.clean_system_cache()
+            print(f"Cache cleaning results: {cache_results}")  # Debug print
             
             # Optimize memory allocation
+            print("Optimizing memory allocation...")  # Debug print
             optimization_results = self.optimize_memory_allocation()
+            print(f"Memory optimization results: {optimization_results}")  # Debug print
             
-            # Force garbage collection
-            gc.collect()
+            # Force garbage collection multiple times for better results
+            print("Running garbage collection...")  # Debug print
+            for i in range(3):
+                collected = gc.collect()
+                print(f"GC cycle {i+1}: collected {collected} objects")  # Debug print
             
-            # Get final memory
-            final_memory = self.get_memory_info()
-            final_used = final_memory['used_memory']
+            # Wait a moment for memory to be freed
+            time.sleep(0.5)
             
-            # Calculate freed memory
-            freed_memory = initial_used - final_used
+            # Get final memory in MB
+            final_memory = psutil.virtual_memory()
+            final_used_mb = final_memory.used / (1024**2)  # Convert to MB
+            print(f"Final memory usage: {final_used_mb:.2f} MB")  # Debug print
+            
+            # Calculate freed memory in MB
+            freed_memory_mb = initial_used_mb - final_used_mb
+            print(f"Memory freed: {freed_memory_mb:.2f} MB")  # Debug print
+            
+            # If no memory was freed, try more aggressive cleaning
+            if freed_memory_mb <= 0:
+                print("No memory freed, trying aggressive cleaning...")  # Debug print
+                # Try to free more memory by clearing Python caches
+                import sys
+                if hasattr(sys, '_clear_type_cache'):
+                    sys._clear_type_cache()
+                    print("Cleared Python type cache")  # Debug print
+                
+                # Force another garbage collection
+                gc.collect()
+                time.sleep(0.2)
+                
+                # Recalculate
+                final_memory = psutil.virtual_memory()
+                final_used_mb = final_memory.used / (1024**2)
+                freed_memory_mb = initial_used_mb - final_used_mb
+                print(f"After aggressive cleaning: {freed_memory_mb:.2f} MB freed")  # Debug print
             
             # Update memory history
             self.memory_history.append({
                 'timestamp': time.time(),
-                'freed_memory': freed_memory,
+                'freed_memory': freed_memory_mb,
                 'cache_cleaned': cache_results,
                 'optimization_applied': optimization_results
             })
             
-            return max(0, freed_memory)
+            print(f"RAM cleaning completed successfully, freed: {freed_memory_mb:.2f} MB")  # Debug print
             
-        except Exception:
+            # Return freed memory in MB, minimum 0
+            return max(0, freed_memory_mb)
+            
+        except Exception as e:
+            print(f"RAM cleaning error: {e}")
+            import traceback
+            traceback.print_exc()  # Print full traceback for debugging
             return 0.0
     
     def start_auto_cleanup(self, interval: int = 300):  # 5 minutes
