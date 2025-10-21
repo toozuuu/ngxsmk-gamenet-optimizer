@@ -1,16 +1,25 @@
 # NGXSMK GameNet Optimizer
 
-[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-brightgreen.svg)](https://github.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg)](https://github.com)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-lightgrey.svg)](https://github.com)
+[![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/actions)
 [![GitHub stars](https://img.shields.io/github/stars/toozuuu/ngxsmk-gamenet-optimizer.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/toozuuu/ngxsmk-gamenet-optimizer.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/network)
+[![Downloads](https://img.shields.io/badge/Downloads-Latest-blue.svg)](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/releases)
 
 > **A powerful, open-source gaming optimization suite that enhances your gaming experience through advanced network optimization, system tuning, and performance monitoring.**
 
 ## 🚀 Quick Start
 
+### Download Pre-built Executable (Recommended)
+1. **Download** the latest release from [Releases](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/releases)
+2. **Extract** the executable from the zip file
+3. **Run** `NGXSMK_GameNet_Optimizer_Advanced.exe`
+4. **Enjoy** optimized gaming performance!
+
+### Build from Source
 ```bash
 # Clone the repository
 git clone https://github.com/toozuuu/ngxsmk-gamenet-optimizer.git
@@ -19,8 +28,11 @@ cd ngxsmk-gamenet-optimizer
 # Install dependencies
 pip install -r requirements.txt
 
-# Launch the application
-python launcher.py
+# Build executable
+python build_simple_advanced.py
+
+# Run the application
+python main.py
 ```
 
 ## ✨ What is NGXSMK GameNet Optimizer?
@@ -92,9 +104,20 @@ NGXSMK GameNet Optimizer is a comprehensive, open-source gaming optimization too
 ## 🛠️ Installation
 
 ### Prerequisites
-- Python 3.7 or higher
-- Windows 10/11 (primary support) or Linux
+- Python 3.13+ (for building from source)
+- Windows 10/11 (primary support)
 - Administrator privileges (for full functionality)
+
+### Automated Builds
+This project uses GitHub Actions for automated building and testing:
+
+- **🔄 Automatic Builds** - Every push triggers a new build
+- **📦 Pre-built Executables** - Download ready-to-use executables
+- **🧪 Automated Testing** - Continuous integration testing
+- **📋 Build Status** - Real-time build status monitoring
+
+### Download Latest Build
+Visit the [Actions](https://github.com/toozuuu/ngxsmk-gamenet-optimizer/actions) page to download the latest automated build artifacts.
 
 ### Method 1: Quick Install
 ```bash
@@ -141,20 +164,35 @@ run.bat
 
 ```
 ngxsmk-gamenet-optimizer/
-├── main.py                 # Main application
-├── launcher.py            # Application launcher
-├── requirements.txt       # Python dependencies
-├── modules/               # Core optimization modules
-│   ├── fps_boost.py      # FPS optimization
-│   ├── network_analyzer.py # Network analysis
-│   ├── multi_internet.py  # Multi-connection management
-│   ├── traffic_shaper.py  # Traffic shaping
-│   ├── ram_cleaner.py    # Memory optimization
-│   ├── lol_optimizer.py  # League of Legends specific
-│   └── config_manager.py # Configuration management
-├── run.bat               # Windows launcher
-├── run.sh                # Linux/Mac launcher
-└── README.md             # This file
+├── main.py                    # Main application
+├── build_simple_advanced.py   # Build script
+├── build_local.py             # Local development build
+├── requirements.txt           # Python dependencies
+├── requirements_minimal.txt   # Minimal dependencies
+├── modules/                   # Core optimization modules
+│   ├── fps_boost.py          # FPS optimization
+│   ├── network_analyzer.py   # Network analysis
+│   ├── multi_internet.py     # Multi-connection management
+│   ├── traffic_shaper.py     # Traffic shaping
+│   ├── ram_cleaner.py        # Memory optimization
+│   ├── lol_optimizer.py      # League of Legends specific
+│   ├── config_manager.py     # Configuration management
+│   ├── settings_dialog.py    # Settings interface
+│   ├── advanced_optimizer.py # Advanced optimization
+│   ├── system_monitor.py     # System monitoring
+│   ├── network_optimizer.py # Network optimization
+│   └── gaming_optimizer.py   # Gaming optimization
+├── .github/workflows/         # CI/CD pipelines
+│   ├── build.yml             # Main build workflow
+│   ├── dev-build.yml         # Development builds
+│   ├── release.yml           # Release workflow
+│   └── test.yml              # Testing workflow
+├── dist/                     # Built executables
+├── LICENSE                   # MIT License
+├── CONTRIBUTING.md           # Contributing guidelines
+├── CODE_OF_CONDUCT.md       # Code of conduct
+├── CHANGELOG.md              # Version history
+└── README.md                 # This file
 ```
 
 ## 🤝 Contributing
@@ -176,6 +214,43 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Local Building
+```bash
+# Quick local build
+python build_local.py
+
+# Or use the existing build script
+python build_simple_advanced.py
+```
+
+## 🔄 CI/CD Pipeline
+
+This project uses GitHub Actions for automated building, testing, and deployment:
+
+### 🏗️ Build Workflows
+- **Main Build** (`build.yml`) - Builds on push to main/develop branches
+- **Development Build** (`dev-build.yml`) - Quick builds for feature branches
+- **Release Build** (`release.yml`) - Creates releases with executables
+- **Test Suite** (`test.yml`) - Automated testing and validation
+
+### 📦 Automated Features
+- **🔄 Auto Build** - Every push triggers a new build
+- **🧪 Auto Test** - Comprehensive testing on multiple Python versions
+- **📦 Auto Release** - Automatic release creation on version tags
+- **📋 Build Status** - Real-time build status monitoring
+- **🔍 Security Scan** - Basic security checks on builds
+
+### 🚀 Release Process
+1. **Tag Creation** - Create a version tag (e.g., `v2.0.0`)
+2. **Auto Build** - GitHub Actions automatically builds the executable
+3. **Auto Release** - Release is created with downloadable executables
+4. **Artifact Upload** - Build artifacts are uploaded to releases
+
+### 📊 Build Artifacts
+- **Executable** - Ready-to-run Windows executable
+- **Archive** - Complete package with documentation
+- **Build Info** - Detailed build information and changelog
+
 ## 📊 Performance Benefits
 
 - **Reduced Latency** - Optimize network routing for lower ping
@@ -194,11 +269,27 @@ python main.py
 
 ## 📋 System Requirements
 
-- **OS**: Windows 10/11 (primary), Linux (partial support)
+### Minimum Requirements
+- **OS**: Windows 10/11 (64-bit)
 - **RAM**: 4GB minimum, 8GB recommended
-- **CPU**: Dual-core processor minimum
+- **CPU**: Dual-core processor (2.0 GHz+)
+- **Storage**: 100MB free space
 - **Network**: Active internet connection
 - **Permissions**: Administrator privileges for full functionality
+
+### Recommended Requirements
+- **OS**: Windows 11 (latest updates)
+- **RAM**: 16GB or more
+- **CPU**: Quad-core processor (3.0 GHz+)
+- **Storage**: 500MB free space (SSD recommended)
+- **Network**: High-speed internet connection
+- **GPU**: Dedicated graphics card for gaming
+
+### Build Requirements (for developers)
+- **Python**: 3.13+ with pip
+- **PyInstaller**: For building executables
+- **Git**: For version control
+- **Visual Studio Build Tools**: For compiling dependencies (Windows)
 
 ## 🐛 Troubleshooting
 

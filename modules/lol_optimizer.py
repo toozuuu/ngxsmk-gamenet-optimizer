@@ -224,46 +224,70 @@ class LoLOptimizer:
     
     def get_lol_server_latency(self) -> Dict[str, float]:
         """Test latency to League of Legends servers"""
+        # Real LoL server IPs (these are the actual Riot Games server IPs)
         servers = {
-            'NA': '104.160.131.1',
-            'EUW': '104.160.131.2', 
-            'EUNE': '104.160.131.3',
-            'KR': '104.160.131.4',
-            'BR': '104.160.131.5',
-            'SG': '104.160.131.6'
+            'NA': '104.160.131.1',      # North America
+            'EUW': '104.160.141.3',     # Europe West  
+            'EUNE': '104.160.142.3',    # Europe Nordic & East
+            'KR': '104.160.156.1',      # Korea
+            'BR': '104.160.152.3',      # Brazil
+            'SG': '104.160.136.3'       # Singapore (Southeast Asia)
         }
         
         latencies = {}
         
         for region, server in servers.items():
             try:
-                # Simple ping test
+                # Use ping with proper parameters for accurate latency testing
                 if self.system == "Windows":
-                    result = subprocess.run(['ping', '-n', '1', server], 
-                                          capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(['ping', '-n', '4', '-w', '5000', server], 
+                                          capture_output=True, text=True, timeout=15)
                 else:
-                    result = subprocess.run(['ping', '-c', '1', server], 
-                                          capture_output=True, text=True, timeout=10)
+                    result = subprocess.run(['ping', '-c', '4', '-W', '5', server], 
+                                          capture_output=True, text=True, timeout=15)
                 
                 if result.returncode == 0:
-                    # Parse latency from ping output
+                    # Parse average latency from ping output
                     output = result.stdout
-                    if 'time=' in output:
-                        time_part = output.split('time=')[1].split()[0]
-                        if 'ms' in time_part:
-                            latency = float(time_part.replace('ms', ''))
-                            latencies[region] = latency
-                        else:
-                            latencies[region] = 999
-                    else:
-                        latencies[region] = 999
+                    latency = self._parse_ping_latency(output)
+                    latencies[region] = latency
                 else:
-                    latencies[region] = 999
+                    latencies[region] = 999.0
                     
+            except subprocess.TimeoutExpired:
+                latencies[region] = 999.0
             except Exception:
-                latencies[region] = 999
+                latencies[region] = 999.0
         
         return latencies
+    
+    def _parse_ping_latency(self, ping_output: str) -> float:
+        """Parse latency from ping command output"""
+        try:
+            lines = ping_output.split('\n')
+            latencies = []
+            
+            for line in lines:
+                if 'time=' in line or 'time<' in line:
+                    # Extract latency value
+                    if 'time=' in line:
+                        time_part = line.split('time=')[1].split()[0]
+                    else:
+                        time_part = line.split('time<')[1].split()[0]
+                    
+                    # Remove 'ms' and convert to float
+                    if 'ms' in time_part:
+                        latency = float(time_part.replace('ms', ''))
+                        latencies.append(latency)
+            
+            if latencies:
+                # Return average latency
+                return sum(latencies) / len(latencies)
+            else:
+                return 999.0
+                
+        except Exception:
+            return 999.0
     
     def get_best_lol_server(self) -> str:
         """Get the best League of Legends server based on latency"""
@@ -272,6 +296,12 @@ class LoLOptimizer:
         if not latencies:
             return "Unknown"
         
+        # Filter out unreachable servers (999ms)
+        reachable_servers = {k: v for k, v in latencies.items() if v < 999}
+        
+        if not reachable_servers:
+            return "No servers reachable"
+        
         # Find server with lowest latency
-        best_server = min(latencies.items(), key=lambda x: x[1])
+        best_server = min(reachable_servers.items(), key=lambda x: x[1])
         return f"{best_server[0]} ({best_server[1]:.1f}ms)"

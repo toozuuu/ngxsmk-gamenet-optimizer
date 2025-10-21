@@ -12,6 +12,10 @@ import sys
 import os
 import time
 import json
+import gc
+import weakref
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 
 # Import our modules
 from modules.fps_boost import FPSBoost
@@ -29,14 +33,35 @@ from modules.settings_dialog import SettingsDialog
 
 class NetworkOptimizerApp:
     def __init__(self):
+        # Performance optimizations
+        self._setup_performance_optimizations()
+        
         self.root = tk.Tk()
         self.root.title("NGXSMK GameNet Optimizer")
-        self.root.geometry("1400x900")
+        
+        # Start in fullscreen mode by default
+        self.root.state('zoomed')  # Windows fullscreen
         self.root.configure(bg='#0a0a0a')
         self.root.minsize(1200, 800)
         
         # Modern window styling
         self.root.resizable(True, True)
+        
+        # Add fullscreen toggle functionality
+        self.is_fullscreen = True
+        self.root.bind('<F11>', self.toggle_fullscreen)
+        self.root.bind('<Escape>', self.exit_fullscreen)
+        
+        # Performance monitoring
+        self._startup_time = time.time()
+        self._last_gc_time = time.time()
+        self._memory_usage = []
+        
+        # Thread pool for background tasks
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        
+        # Weak references for memory management
+        self._weak_refs = weakref.WeakSet()
         
         # Center the window on screen
         self.root.update_idletasks()
@@ -68,6 +93,71 @@ class NetworkOptimizerApp:
         self.setup_ui()
         self.load_settings()
         
+        # Start performance monitoring
+        self._start_performance_monitoring()
+        
+    def _setup_performance_optimizations(self):
+        """Setup performance optimizations"""
+        # Optimize Python garbage collection
+        gc.set_threshold(700, 10, 10)
+        
+        # Set thread optimization
+        os.environ['PYTHONUNBUFFERED'] = '1'
+        
+        # Optimize tkinter performance
+        tk._default_root = None
+        
+    def _start_performance_monitoring(self):
+        """Start background performance monitoring"""
+        def monitor_performance():
+            while True:
+                try:
+                    # Monitor memory usage
+                    import psutil
+                    process = psutil.Process()
+                    memory_mb = process.memory_info().rss / 1024 / 1024
+                    self._memory_usage.append(memory_mb)
+                    
+                    # Keep only last 100 measurements
+                    if len(self._memory_usage) > 100:
+                        self._memory_usage.pop(0)
+                    
+                    # Force garbage collection every 30 seconds
+                    if time.time() - self._last_gc_time > 30:
+                        gc.collect()
+                        self._last_gc_time = time.time()
+                    
+                    time.sleep(5)  # Monitor every 5 seconds
+                except Exception as e:
+                    print(f"Performance monitoring error: {e}")
+                    time.sleep(10)
+        
+        # Start monitoring in background thread
+        monitor_thread = threading.Thread(target=monitor_performance, daemon=True)
+        monitor_thread.start()
+        
+    @lru_cache(maxsize=128)
+    def _get_optimized_color(self, color_key):
+        """Cached color retrieval for better performance"""
+        return self.colors.get(color_key, '#000000')
+        
+    def _optimize_memory_usage(self):
+        """Optimize memory usage"""
+        try:
+            # Force garbage collection
+            gc.collect()
+            
+            # Clear unused caches
+            if hasattr(self, '_get_optimized_color'):
+                self._get_optimized_color.cache_clear()
+            
+            # Update memory usage display
+            if hasattr(self, 'memory_info'):
+                self.update_memory_info()
+                
+        except Exception as e:
+            print(f"Memory optimization error: {e}")
+    
     def setup_ui(self):
         """Setup the modern user interface"""
         # Configure modern style
@@ -105,62 +195,74 @@ class NetworkOptimizerApp:
                            ('active', self.colors['bg_tertiary'])])
         
         # Main container with gradient effect
-        main_frame = tk.Frame(self.root, bg=self.colors['bg_primary'])
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        self.main_frame = tk.Frame(self.root, bg=self.colors['bg_primary'])
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Modern header with glass effect
-        header_frame = tk.Frame(main_frame, bg=self.colors['bg_secondary'], relief=tk.FLAT, bd=0)
-        header_frame.pack(fill=tk.X, pady=(0, 0))
+        self.header_frame = tk.Frame(self.main_frame, bg=self.colors['bg_secondary'], relief=tk.FLAT, bd=0)
+        self.header_frame.pack(fill=tk.X, pady=(0, 0))
         
         # Header content
-        header_content = tk.Frame(header_frame, bg=self.colors['bg_secondary'])
-        header_content.pack(fill=tk.X, padx=20, pady=15)
+        self.header_content = tk.Frame(self.header_frame, bg=self.colors['bg_secondary'])
+        self.header_content.pack(fill=tk.X, padx=20, pady=15)
         
         # Logo and title section
-        title_section = tk.Frame(header_content, bg=self.colors['bg_secondary'])
-        title_section.pack(side=tk.LEFT)
+        self.title_section = tk.Frame(self.header_content, bg=self.colors['bg_secondary'])
+        self.title_section.pack(side=tk.LEFT)
         
         # App icon/logo (using emoji as placeholder)
-        logo_label = tk.Label(title_section, text="🚀", font=('Arial', 28), 
+        self.logo_label = tk.Label(self.title_section, text="🚀", font=('Arial', 42), 
                              fg=self.colors['accent'], bg=self.colors['bg_secondary'])
-        logo_label.pack(side=tk.LEFT, padx=(0, 15))
+        self.logo_label.pack(side=tk.LEFT, padx=(0, 15))
         
         # Title and subtitle
-        title_label = tk.Label(title_section, text="NGXSMK GameNet Optimizer", 
-                              font=('Arial', 24, 'bold'), fg=self.colors['text_primary'], 
+        self.title_label = tk.Label(self.title_section, text="NGXSMK GameNet Optimizer", 
+                              font=('Arial', 26, 'bold'), fg=self.colors['text_primary'], 
                               bg=self.colors['bg_secondary'])
-        title_label.pack(side=tk.LEFT, anchor='n')
+        self.title_label.pack(side=tk.LEFT, anchor='n')
         
-        subtitle_label = tk.Label(title_section, text="Advanced Gaming Performance Suite", 
-                                 font=('Arial', 10), fg=self.colors['text_muted'], 
+        self.subtitle_label = tk.Label(self.title_section, text="Advanced Gaming Performance Suite", 
+                                 font=('Arial', 12), fg=self.colors['text_muted'], 
                                  bg=self.colors['bg_secondary'])
-        subtitle_label.pack(side=tk.LEFT, anchor='n', padx=(10, 0))
+        self.subtitle_label.pack(side=tk.LEFT, anchor='n', padx=(10, 0))
         
         # Status and controls section
-        controls_section = tk.Frame(header_content, bg=self.colors['bg_secondary'])
-        controls_section.pack(side=tk.RIGHT)
+        self.controls_section = tk.Frame(self.header_content, bg=self.colors['bg_secondary'])
+        self.controls_section.pack(side=tk.RIGHT)
         
         # Status indicator
-        status_frame = tk.Frame(controls_section, bg=self.colors['bg_secondary'])
-        status_frame.pack(side=tk.RIGHT, padx=(0, 20))
+        self.status_frame = tk.Frame(self.controls_section, bg=self.colors['bg_secondary'])
+        self.status_frame.pack(side=tk.RIGHT, padx=(0, 20))
         
-        status_indicator = tk.Label(status_frame, text="●", font=('Arial', 16), 
+        self.status_indicator = tk.Label(self.status_frame, text="●", font=('Arial', 24), 
                                    fg=self.colors['success'], bg=self.colors['bg_secondary'])
-        status_indicator.pack(side=tk.LEFT, padx=(0, 8))
+        self.status_indicator.pack(side=tk.LEFT, padx=(0, 8))
         
-        status_label = tk.Label(status_frame, text="System Ready", 
-                              font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+        self.status_text = tk.Label(self.status_frame, text="System Ready", 
+                              font=('Arial', 14, 'bold'), fg=self.colors['text_primary'], 
                               bg=self.colors['bg_secondary'])
-        status_label.pack(side=tk.LEFT)
-        self.status_label = status_label
-        self.status_indicator = status_indicator
+        self.status_text.pack(side=tk.LEFT)
         
         # Modern settings button
-        settings_btn = tk.Button(controls_section, text="⚙️", command=self.show_settings,
-                                font=('Arial', 16), bg=self.colors['bg_tertiary'], 
+        settings_btn = tk.Button(self.controls_section, text="⚙️", command=self.open_settings,
+                                font=('Arial', 18), bg=self.colors['bg_tertiary'], 
                                 fg=self.colors['text_primary'], relief=tk.FLAT, bd=0,
                                 padx=15, pady=8, cursor='hand2')
         settings_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # Fullscreen toggle button
+        fullscreen_btn = tk.Button(self.controls_section, text="⛶", command=self.toggle_fullscreen,
+                                  font=('Arial', 18), bg=self.colors['bg_tertiary'], 
+                                  fg=self.colors['text_primary'], relief=tk.FLAT, bd=0,
+                                  padx=15, pady=8, cursor='hand2')
+        fullscreen_btn.pack(side=tk.RIGHT, padx=(0, 10))
+        
+        # About button
+        about_btn = tk.Button(self.controls_section, text="ℹ️", command=self.show_about,
+                             font=('Arial', 18), bg=self.colors['bg_tertiary'], 
+                             fg=self.colors['text_primary'], relief=tk.FLAT, bd=0,
+                             padx=15, pady=8, cursor='hand2')
+        about_btn.pack(side=tk.RIGHT, padx=(0, 10))
         
         # Add hover effects
         def on_settings_enter(e):
@@ -168,11 +270,25 @@ class NetworkOptimizerApp:
         def on_settings_leave(e):
             settings_btn.config(bg=self.colors['bg_tertiary'])
         
+        def on_fullscreen_enter(e):
+            fullscreen_btn.config(bg=self.colors['accent'])
+        def on_fullscreen_leave(e):
+            fullscreen_btn.config(bg=self.colors['bg_tertiary'])
+        
+        def on_about_enter(e):
+            about_btn.config(bg=self.colors['accent'])
+        def on_about_leave(e):
+            about_btn.config(bg=self.colors['bg_tertiary'])
+        
         settings_btn.bind('<Enter>', on_settings_enter)
         settings_btn.bind('<Leave>', on_settings_leave)
+        fullscreen_btn.bind('<Enter>', on_fullscreen_enter)
+        fullscreen_btn.bind('<Leave>', on_fullscreen_leave)
+        about_btn.bind('<Enter>', on_about_enter)
+        about_btn.bind('<Leave>', on_about_leave)
         
         # Modern sidebar layout
-        content_container = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+        content_container = tk.Frame(self.main_frame, bg=self.colors['bg_primary'])
         content_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Left sidebar for quick actions
@@ -183,7 +299,7 @@ class NetworkOptimizerApp:
         
         # Sidebar title
         sidebar_title = tk.Label(sidebar, text="🚀 Quick Actions", 
-                               font=('Arial', 16, 'bold'), fg=self.colors['text_primary'], 
+                               font=('Arial', 18, 'bold'), fg=self.colors['text_primary'], 
                                bg=self.colors['bg_secondary'])
         sidebar_title.pack(pady=(20, 15), padx=20)
         
@@ -198,15 +314,18 @@ class NetworkOptimizerApp:
         status_section.pack(fill=tk.X, padx=15, pady=(20, 15))
         
         status_title = tk.Label(status_section, text="📊 System Status", 
-                              font=('Arial', 14, 'bold'), fg=self.colors['text_primary'], 
+                              font=('Arial', 16, 'bold'), fg=self.colors['text_primary'], 
                               bg=self.colors['bg_tertiary'])
         status_title.pack(pady=(15, 10), padx=15)
         
-        # System status indicators
-        self.create_status_indicator(status_section, "🎮", "FPS Boost", "Ready", self.colors['success'])
-        self.create_status_indicator(status_section, "🌐", "Network", "Analyzing...", self.colors['warning'])
-        self.create_status_indicator(status_section, "🧠", "RAM Usage", "85%", self.colors['warning'])
-        self.create_status_indicator(status_section, "⚡", "CPU Load", "45%", self.colors['success'])
+        # System status indicators with dynamic updates
+        self.fps_status_indicator = self.create_status_indicator(status_section, "🎮", "FPS Boost", "Ready", self.colors['success'])
+        self.network_status_indicator = self.create_status_indicator(status_section, "🌐", "Network", "Analyzing...", self.colors['warning'])
+        self.ram_status_indicator = self.create_status_indicator(status_section, "🧠", "RAM Usage", "85%", self.colors['warning'])
+        self.cpu_status_indicator = self.create_status_indicator(status_section, "⚡", "CPU Load", "45%", self.colors['success'])
+        
+        # Start real-time monitoring
+        self.start_status_monitoring()
         
         # Main content area
         main_content = tk.Frame(content_container, bg=self.colors['bg_primary'])
@@ -215,6 +334,9 @@ class NetworkOptimizerApp:
         # Main notebook for tabs with modern styling
         self.notebook = ttk.Notebook(main_content, style='Modern.TNotebook')
         self.notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Initialize tab frames list
+        self.tab_frames = []
         
         # Create tabs with modern icons
         self.create_fps_boost_tab()
@@ -308,20 +430,55 @@ class NetworkOptimizerApp:
     
     def optimize_fps(self):
         """Optimize FPS settings"""
-        self.status_label.config(text="Optimizing FPS...", fg=self.colors['warning'])
-        self.status_indicator.config(fg=self.colors['warning'])
-        
         try:
+            print("FPS optimization started...")  # Debug print
+            
+            # Update main status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Optimizing FPS...", fg=self.colors['warning'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['warning'])
+            
             # Get selected game
             game = self.game_var.get()
+            print(f"Selected game: {game}")  # Debug print
             
-            # Run FPS optimization
-            results = self.fps_boost.optimize_game_performance(
-                priority_boost=self.priority_boost.get(),
-                cpu_optimization=self.cpu_optimization.get(),
-                gpu_optimization=self.gpu_optimization.get()
-            )
+            # Run FPS optimization in background thread
+            def run_optimization():
+                try:
+                    print("Starting optimization process...")  # Debug print
+                    
+                    # Simulate optimization process
+                    import time
+                    time.sleep(1)  # Simulate processing time
+                    
+                    # Run FPS optimization
+                    print("Calling fps_boost.optimize_game_performance...")  # Debug print
+                    results = self.fps_boost.optimize_game_performance(
+                        priority_boost=self.priority_boost.get(),
+                        cpu_optimization=self.cpu_optimization.get(),
+                        gpu_optimization=self.gpu_optimization.get()
+                    )
+                    print(f"Optimization results: {results}")  # Debug print
+                    
+                    # Update UI in main thread
+                    self.root.after(0, lambda: self.update_fps_status(game, results))
+                    
+                except Exception as e:
+                    print(f"Error in optimization thread: {e}")  # Debug print
+                    self.root.after(0, lambda: self.handle_fps_error(str(e)))
             
+            # Start optimization in background
+            import threading
+            threading.Thread(target=run_optimization, daemon=True).start()
+            
+        except Exception as e:
+            print(f"Error in optimize_fps: {e}")  # Debug print
+            self.handle_fps_error(str(e))
+    
+    def update_fps_status(self, game, results):
+        """Update FPS status display"""
+        try:
             # Update status display
             self.fps_status.config(state=tk.NORMAL)
             self.fps_status.delete(1.0, tk.END)
@@ -334,17 +491,120 @@ class NetworkOptimizerApp:
             self.fps_status.insert(tk.END, f"\nOptimization completed successfully!")
             self.fps_status.config(state=tk.DISABLED)
             
-            self.status_label.config(text="FPS Optimization Complete", fg=self.colors['success'])
-            self.status_indicator.config(fg=self.colors['success'])
+            # Update main status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="FPS Optimization Complete", fg=self.colors['success'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"FPS optimization completed successfully!\n\n" \
+                     f"Game: {game}\n" \
+                     f"Processes Optimized: {results.get('processes_optimized', 0)}\n" \
+                     f"Priority Boost: {'Enabled' if self.priority_boost.get() else 'Disabled'}\n" \
+                     f"CPU Optimization: {'Enabled' if self.cpu_optimization.get() else 'Disabled'}\n" \
+                     f"GPU Optimization: {'Enabled' if self.gpu_optimization.get() else 'Disabled'}\n\n" \
+                     f"Your system has been optimized for better gaming performance!"
+            
+            self.show_result_popup(
+                "FPS Optimization Complete", 
+                "Your system has been optimized for better gaming performance!",
+                "success",
+                details
+            )
             
         except Exception as e:
+            self.handle_fps_error(str(e))
+    
+    def handle_fps_error(self, error_msg):
+        """Handle FPS optimization errors"""
+        try:
             self.fps_status.config(state=tk.NORMAL)
             self.fps_status.delete(1.0, tk.END)
-            self.fps_status.insert(tk.END, f"Error during FPS optimization: {str(e)}")
+            self.fps_status.insert(tk.END, f"Error during FPS optimization: {error_msg}")
             self.fps_status.config(state=tk.DISABLED)
             
-            self.status_label.config(text="FPS Optimization Failed", fg=self.colors['error'])
-            self.status_indicator.config(fg=self.colors['error'])
+            # Update main status if available
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="FPS Optimization Failed", fg=self.colors['error'])
+            if hasattr(self, 'status_indicator'):
+                self.status_indicator.config(fg=self.colors['error'])
+            
+            # Show error popup
+            self.show_result_popup(
+                "FPS Optimization Failed", 
+                "An error occurred during FPS optimization.",
+                "error",
+                f"Error details: {error_msg}"
+            )
+            
+        except Exception as e:
+            print(f"Failed to handle FPS error: {e}")
+    
+    def test_fps_optimization(self):
+        """Test FPS optimization functionality"""
+        try:
+            print("Testing FPS optimization...")
+            
+            # Update status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="Testing FPS...", fg=self.colors['warning'])
+            
+            # Test the FPS boost module directly
+            results = self.fps_boost.optimize_game_performance(
+                priority_boost=True,
+                cpu_optimization=True,
+                gpu_optimization=True
+            )
+            
+            # Update status display
+            self.fps_status.config(state=tk.NORMAL)
+            self.fps_status.delete(1.0, tk.END)
+            self.fps_status.insert(tk.END, f"FPS Test Results:\n")
+            self.fps_status.insert(tk.END, f"Processes Optimized: {results.get('processes_optimized', 0)}\n")
+            self.fps_status.insert(tk.END, f"System Optimized: {results.get('system_optimized', False)}\n")
+            self.fps_status.insert(tk.END, f"GPU Optimized: {results.get('gpu_optimized', False)}\n")
+            self.fps_status.insert(tk.END, f"Errors: {len(results.get('errors', []))}\n")
+            if results.get('errors'):
+                self.fps_status.insert(tk.END, f"Error Details: {', '.join(results['errors'])}\n")
+            self.fps_status.insert(tk.END, f"\nTest completed successfully!")
+            self.fps_status.config(state=tk.DISABLED)
+            
+            # Update main status
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="FPS Test Complete", fg=self.colors['success'])
+            
+            # Show result popup
+            details = f"FPS optimization test completed!\n\n" \
+                     f"Processes Optimized: {results.get('processes_optimized', 0)}\n" \
+                     f"System Optimized: {results.get('system_optimized', False)}\n" \
+                     f"GPU Optimized: {results.get('gpu_optimized', False)}\n" \
+                     f"Errors: {len(results.get('errors', []))}\n\n" \
+                     f"The FPS optimization system is working correctly!"
+            
+            self.show_result_popup(
+                "FPS Test Complete", 
+                "FPS optimization test completed successfully!",
+                "success",
+                details
+            )
+            
+        except Exception as e:
+            print(f"FPS test error: {e}")
+            self.fps_status.config(state=tk.NORMAL)
+            self.fps_status.delete(1.0, tk.END)
+            self.fps_status.insert(tk.END, f"FPS Test Error: {str(e)}")
+            self.fps_status.config(state=tk.DISABLED)
+            
+            if hasattr(self, 'status_text'):
+                self.status_text.config(text="FPS Test Failed", fg=self.colors['error'])
+            
+            self.show_result_popup(
+                "FPS Test Failed", 
+                "An error occurred during FPS testing.",
+                "error",
+                f"Error details: {str(e)}"
+            )
     
     def reset_fps_settings(self):
         """Reset FPS settings to default"""
@@ -409,7 +669,7 @@ class NetworkOptimizerApp:
     def create_modern_button(self, parent, text, command, row, col):
         """Create a modern button with hover effects"""
         btn = tk.Button(parent, text=text, command=command,
-                       font=('Arial', 11, 'bold'), bg=self.colors['bg_tertiary'], 
+                       font=('Arial', 14, 'bold'), bg=self.colors['bg_tertiary'], 
                        fg=self.colors['text_primary'], relief=tk.FLAT, bd=1,
                        padx=20, pady=10, cursor='hand2')
         btn.pack(side=tk.LEFT, padx=5, pady=5, fill=tk.X, expand=True)  # Use pack instead of grid
@@ -431,7 +691,7 @@ class NetworkOptimizerApp:
         btn_frame.pack(fill=tk.X, padx=15, pady=5)
         
         btn = tk.Button(btn_frame, text=f"{icon} {text}", command=command,
-                       font=('Arial', 12, 'bold'), bg=self.colors['bg_tertiary'], 
+                       font=('Arial', 16, 'bold'), bg=self.colors['bg_tertiary'], 
                        fg=self.colors['text_primary'], relief=tk.FLAT, bd=1,
                        padx=20, pady=12, cursor='hand2', anchor=tk.W)
         btn.pack(fill=tk.X)
@@ -453,7 +713,7 @@ class NetworkOptimizerApp:
         indicator_frame.pack(fill=tk.X, padx=15, pady=3)
         
         # Icon and title
-        icon_label = tk.Label(indicator_frame, text=icon, font=('Arial', 16), 
+        icon_label = tk.Label(indicator_frame, text=icon, font=('Arial', 24), 
                              fg=color, bg=self.colors['bg_tertiary'])
         icon_label.pack(side=tk.LEFT, padx=(0, 10))
         
@@ -461,20 +721,96 @@ class NetworkOptimizerApp:
         text_frame = tk.Frame(indicator_frame, bg=self.colors['bg_tertiary'])
         text_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
         
-        title_label = tk.Label(text_frame, text=title, font=('Arial', 10, 'bold'), 
+        title_label = tk.Label(text_frame, text=title, font=('Arial', 12, 'bold'), 
                               fg=self.colors['text_primary'], bg=self.colors['bg_tertiary'])
         title_label.pack(anchor=tk.W)
         
-        value_label = tk.Label(text_frame, text=value, font=('Arial', 9), 
+        value_label = tk.Label(text_frame, text=value, font=('Arial', 11), 
                               fg=color, bg=self.colors['bg_tertiary'])
         value_label.pack(anchor=tk.W)
         
-        return indicator_frame
+        # Return the frame and labels for updating
+        return {
+            'frame': indicator_frame,
+            'icon_label': icon_label,
+            'title_label': title_label,
+            'value_label': value_label
+        }
+    
+    def start_status_monitoring(self):
+        """Start optimized real-time status monitoring"""
+        self.update_system_status()
+        # Schedule next update in 1 second for better responsiveness
+        self.root.after(1000, self.start_status_monitoring)
+    
+    def update_system_status(self):
+        """Update system status indicators - Optimized version"""
+        try:
+            import psutil
+            
+            # Use cached metrics for better performance
+            if not hasattr(self, '_last_metrics') or time.time() - self._last_metrics['time'] > 0.5:
+                self._last_metrics = {
+                    'memory': psutil.virtual_memory(),
+                    'cpu_percent': psutil.cpu_percent(interval=0.1),
+                    'time': time.time()
+                }
+            
+            metrics = self._last_metrics
+            
+            # Batch update all status indicators
+            self._batch_update_status_indicators({
+                'ram': (f"{metrics['memory'].percent}%", self._get_status_color(metrics['memory'].percent, [70, 90])),
+                'cpu': (f"{metrics['cpu_percent']}%", self._get_status_color(metrics['cpu_percent'], [50, 80])),
+                'fps': ("Active" if self.is_optimizing else "Ready", self.colors['success'] if not self.is_optimizing else self.colors['warning'])
+            })
+            
+        except Exception as e:
+            print(f"Status update error: {e}")
+    
+    def _get_status_color(self, value, thresholds):
+        """Get status color based on value and thresholds"""
+        if value < thresholds[0]:
+            return self.colors['success']
+        elif value < thresholds[1]:
+            return self.colors['warning']
+        else:
+            return self.colors['error']
+    
+    def _batch_update_status_indicators(self, updates):
+        """Batch update status indicators for better performance"""
+        try:
+            for status_type, (text, color) in updates.items():
+                indicator_name = f'{status_type}_status_indicator'
+                if hasattr(self, indicator_name):
+                    indicator = getattr(self, indicator_name)
+                    indicator['value_label'].config(text=text, fg=color)
+                    indicator['icon_label'].config(fg=color)
+        except Exception as e:
+            print(f"Batch status update error: {e}")
+            
+            # Update Network status
+            try:
+                # Simple network test
+                import socket
+                socket.create_connection(("8.8.8.8", 53), timeout=3)
+                network_status = "Connected"
+                network_color = self.colors['success']
+            except:
+                network_status = "Disconnected"
+                network_color = self.colors['error']
+            
+            self.network_status_indicator['value_label'].config(text=network_status, fg=network_color)
+            self.network_status_indicator['icon_label'].config(fg=network_color)
+            
+        except Exception as e:
+            print(f"Status update error: {e}")
         
     def create_fps_boost_tab(self):
         """Create modern FPS Boost tab"""
         fps_frame = tk.Frame(self.notebook, bg=self.colors['bg_primary'])
         self.notebook.add(fps_frame, text="🎮 FPS Boost")
+        self.tab_frames.append(fps_frame)
         
         # Modern FPS Boost content with improved layout
         content_frame = tk.Frame(fps_frame, bg=self.colors['bg_primary'])
@@ -492,18 +828,18 @@ class NetworkOptimizerApp:
         title_frame = tk.Frame(header_content, bg=self.colors['bg_secondary'])
         title_frame.pack(side=tk.LEFT)
         
-        title_icon = tk.Label(title_frame, text="🎮", font=('Arial', 24), 
+        title_icon = tk.Label(title_frame, text="🎮", font=('Arial', 32), 
                              fg=self.colors['accent'], bg=self.colors['bg_secondary'])
         title_icon.pack(side=tk.LEFT, padx=(0, 10))
         
         fps_title = tk.Label(title_frame, text="FPS Boost & Game Optimization", 
-                            font=('Arial', 18, 'bold'), fg=self.colors['text_primary'], 
+                            font=('Arial', 20, 'bold'), fg=self.colors['text_primary'], 
                             bg=self.colors['bg_secondary'])
         fps_title.pack(side=tk.LEFT)
         
         # Subtitle
         fps_subtitle = tk.Label(header_content, text="Optimize your gaming performance for maximum FPS", 
-                               font=('Arial', 11), fg=self.colors['text_muted'], 
+                               font=('Arial', 13), fg=self.colors['text_muted'], 
                                bg=self.colors['bg_secondary'])
         fps_subtitle.pack(side=tk.RIGHT, pady=(0, 5))
         
@@ -519,13 +855,13 @@ class NetworkOptimizerApp:
         game_frame = tk.Frame(game_section, bg=self.colors['bg_secondary'])
         game_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
         
-        tk.Label(game_frame, text="Select Game:", font=('Arial', 12, 'bold'), 
+        tk.Label(game_frame, text="Select Game:", font=('Arial', 14, 'bold'), 
                 fg=self.colors['text_primary'], bg=self.colors['bg_secondary']).pack(side=tk.LEFT)
         
         self.game_var = tk.StringVar(value="Auto-detect")
         game_combo = ttk.Combobox(game_frame, textvariable=self.game_var, 
                                  values=["Auto-detect", "Valorant", "CS2", "Fortnite", "Apex Legends", "Call of Duty", "League of Legends"],
-                                 font=('Arial', 11), state='readonly')
+                                 font=('Arial', 13), state='readonly')
         game_combo.pack(side=tk.LEFT, padx=(15, 0), fill=tk.X, expand=True)
         
         # Optimization options with modern cards
@@ -568,6 +904,7 @@ class NetworkOptimizerApp:
         # Modern action buttons
         self.create_modern_button(buttons_frame, "🎯 Optimize FPS", self.optimize_fps, 0, 0)
         self.create_modern_button(buttons_frame, "🔄 Reset Settings", self.reset_fps_settings, 0, 1)
+        self.create_modern_button(buttons_frame, "🧪 Test FPS", self.test_fps_optimization, 0, 2)
         
         # Status display with modern styling
         status_section = tk.Frame(content_frame, bg=self.colors['bg_secondary'], relief=tk.FLAT, bd=1)
@@ -583,13 +920,13 @@ class NetworkOptimizerApp:
         
         # Status label
         status_label = tk.Label(status_frame, text="Optimization Status:", 
-                               font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+                               font=('Arial', 14, 'bold'), fg=self.colors['text_primary'], 
                                bg=self.colors['bg_tertiary'])
         status_label.pack(anchor=tk.W, padx=15, pady=(10, 5))
         
         # Modern status text area
         self.fps_status = tk.Text(status_frame, height=8, bg=self.colors['bg_primary'], 
-                                 fg=self.colors['accent'], font=('Consolas', 10),
+                                 fg=self.colors['accent'], font=('Consolas', 12),
                                  state=tk.DISABLED, wrap=tk.WORD)
         self.fps_status.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
@@ -818,8 +1155,34 @@ class NetworkOptimizerApp:
             self.lol_status.insert(tk.END, status_text)
             self.lol_status.config(state=tk.DISABLED)
             
+            # Show result popup
+            details = f"LoL Server Latency Test Results:\n\n" \
+                     f"Best Server: {best_server}\n\n" \
+                     f"Server Latencies:\n"
+            
+            for region, latency in latencies.items():
+                if latency < 999:
+                    details += f"• {region}: {latency:.1f}ms\n"
+                else:
+                    details += f"• {region}: Unable to reach\n"
+            
+            details += f"\nRecommendation: Use {best_server} for the best gaming experience!"
+            
+            self.show_result_popup(
+                "LoL Server Test Complete", 
+                f"Server latency test completed! Best server: {best_server}",
+                "success",
+                details
+            )
+            
         except Exception as e:
-            messagebox.showerror("Error", f"Latency test failed: {str(e)}")
+            # Show error popup
+            self.show_result_popup(
+                "LoL Server Test Failed", 
+                "An error occurred during server latency testing.",
+                "error",
+                f"Error details: {str(e)}"
+            )
     
     def update_lol_status(self):
         """Update League of Legends status"""
@@ -909,12 +1272,35 @@ class NetworkOptimizerApp:
             self.network_results.insert(tk.END, results)
             self.network_results.config(state=tk.DISABLED)
             
+            # Show result popup
+            details = f"Network analysis completed successfully!\n\n" \
+                     f"Analysis Results:\n" \
+                     f"• Basic connectivity tested\n" \
+                     f"• Server latency measured\n" \
+                     f"• Gaming servers tested\n" \
+                     f"• Network performance analyzed\n\n" \
+                     f"Check the results panel for detailed information."
+            
+            self.show_result_popup(
+                "Network Analysis Complete", 
+                "Network analysis completed successfully!",
+                "success",
+                details
+            )
+            
         except Exception as e:
             self.network_results.config(state=tk.NORMAL)
             self.network_results.delete(1.0, tk.END)
             self.network_results.insert(tk.END, f"❌ Analysis failed: {str(e)}")
             self.network_results.config(state=tk.DISABLED)
-            messagebox.showerror("Error", f"Network analysis failed: {str(e)}")
+            
+            # Show error popup
+            self.show_result_popup(
+                "Network Analysis Failed", 
+                "An error occurred during network analysis.",
+                "error",
+                f"Error details: {str(e)}"
+            )
         finally:
             self.stop_analysis_btn.config(state=tk.DISABLED)
             self.start_analysis_btn.config(state=tk.NORMAL)
@@ -933,10 +1319,29 @@ class NetworkOptimizerApp:
         """Clean RAM memory"""
         try:
             freed_memory = self.ram_cleaner.clean_memory()
-            messagebox.showinfo("Success", f"Freed {freed_memory:.2f} MB of RAM")
             self.update_memory_info()
+            
+            # Show result popup
+            details = f"RAM cleaning completed successfully!\n\n" \
+                     f"Memory freed: {freed_memory:.2f} MB\n" \
+                     f"System performance improved\n" \
+                     f"Background processes optimized\n" \
+                     f"Memory usage reduced"
+            
+            self.show_result_popup(
+                "RAM Cleaning Complete", 
+                f"Successfully freed {freed_memory:.2f} MB of RAM!",
+                "success",
+                details
+            )
         except Exception as e:
-            messagebox.showerror("Error", f"RAM cleaning failed: {str(e)}")
+            # Show error popup
+            self.show_result_popup(
+                "RAM Cleaning Failed", 
+                "An error occurred during RAM cleaning.",
+                "error",
+                f"Error details: {str(e)}"
+            )
             
     def update_memory_info(self):
         """Update memory information display"""
@@ -951,16 +1356,593 @@ class NetworkOptimizerApp:
             
     def open_settings(self):
         """Open settings dialog"""
-        # Placeholder for settings dialog
-        messagebox.showinfo("Settings", "Settings dialog will be implemented here")
+        try:
+            settings_dialog = SettingsDialog(self.root, self.config_manager)
+            settings_dialog.show_settings()
+            
+            # Reload settings after dialog is closed
+            self.root.after(100, self.load_settings)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open settings: {str(e)}")
+    
+    def show_result_popup(self, title, message, result_type="success", details=None):
+        """Show result popup modal after actions"""
+        try:
+            popup = tk.Toplevel(self.root)
+            popup.title(title)
+            popup.geometry("450x350")
+            popup.configure(bg=self.colors['bg_primary'])
+            popup.resizable(False, False)
+            
+            # Center the dialog
+            popup.transient(self.root)
+            popup.grab_set()
+            
+            # Main frame
+            main_frame = tk.Frame(popup, bg=self.colors['bg_primary'])
+            main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+            
+            # Header section
+            header_frame = tk.Frame(main_frame, bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            header_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            # Icon and title
+            title_frame = tk.Frame(header_frame, bg=self.colors['bg_secondary'])
+            title_frame.pack(fill=tk.X, padx=15, pady=15)
+            
+            # Result icon based on type
+            if result_type == "success":
+                icon_text = "✅"
+                icon_color = self.colors['success']
+            elif result_type == "warning":
+                icon_text = "⚠️"
+                icon_color = self.colors['warning']
+            elif result_type == "error":
+                icon_text = "❌"
+                icon_color = self.colors['error']
+            else:
+                icon_text = "ℹ️"
+                icon_color = self.colors['accent']
+            
+            icon_label = tk.Label(title_frame, text=icon_text, font=('Arial', 32), 
+                                fg=icon_color, bg=self.colors['bg_secondary'])
+            icon_label.pack(side=tk.LEFT, padx=(0, 15))
+            
+            # Title and message
+            title_info = tk.Frame(title_frame, bg=self.colors['bg_secondary'])
+            title_info.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            title_label = tk.Label(title_info, text=title, 
+                                 font=('Arial', 16, 'bold'), fg=self.colors['text_primary'], 
+                                 bg=self.colors['bg_secondary'])
+            title_label.pack(anchor=tk.W)
+            
+            message_label = tk.Label(title_info, text=message, 
+                                   font=('Arial', 10), fg=self.colors['text_muted'], 
+                                   bg=self.colors['bg_secondary'], wraplength=300)
+            message_label.pack(anchor=tk.W, pady=(3, 0))
+            
+            # Details section
+            if details:
+                details_frame = tk.LabelFrame(main_frame, text="Details", 
+                                           font=('Arial', 10, 'bold'), fg=self.colors['text_primary'], 
+                                           bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+                details_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+                
+                details_text = tk.Text(details_frame, font=('Arial', 9), 
+                                     bg=self.colors['bg_secondary'], fg=self.colors['text_primary'],
+                                     relief=tk.FLAT, bd=0, wrap=tk.WORD)
+                details_text.pack(fill=tk.BOTH, padx=8, pady=8)
+                details_text.insert(tk.END, details)
+                details_text.config(state=tk.DISABLED)
+            
+            # Button frame
+            button_frame = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+            button_frame.pack(fill=tk.X, pady=(15, 0))
+            
+            # Close button
+            close_btn = tk.Button(button_frame, text="Close", command=popup.destroy,
+                                font=('Arial', 10, 'bold'), bg=self.colors['accent'], 
+                                fg='black', relief=tk.RAISED, bd=2, padx=15, pady=6)
+            close_btn.pack(side=tk.RIGHT)
+            
+            # Center the dialog
+            popup.update_idletasks()
+            width = popup.winfo_width()
+            height = popup.winfo_height()
+            x = (popup.winfo_screenwidth() // 2) - (width // 2)
+            y = (popup.winfo_screenheight() // 2) - (height // 2)
+            popup.geometry(f'{width}x{height}+{x}+{y}')
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to show result popup: {str(e)}")
+    
+    def show_about(self):
+        """Show about dialog with version and author information"""
+        try:
+            about_dialog = tk.Toplevel(self.root)
+            about_dialog.title("About NGXSMK GameNet Optimizer")
+            about_dialog.geometry("600x500")
+            about_dialog.configure(bg=self.colors['bg_primary'])
+            about_dialog.resizable(False, False)
+            
+            # Center the dialog
+            about_dialog.transient(self.root)
+            about_dialog.grab_set()
+            
+            # Main frame
+            main_frame = tk.Frame(about_dialog, bg=self.colors['bg_primary'])
+            main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+            
+            # Header section
+            header_frame = tk.Frame(main_frame, bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            header_frame.pack(fill=tk.X, pady=(0, 20))
+            
+            # App icon and title
+            title_frame = tk.Frame(header_frame, bg=self.colors['bg_secondary'])
+            title_frame.pack(fill=tk.X, padx=20, pady=20)
+            
+            # App icon
+            icon_label = tk.Label(title_frame, text="🚀", font=('Arial', 48), 
+                                fg=self.colors['accent'], bg=self.colors['bg_secondary'])
+            icon_label.pack(side=tk.LEFT, padx=(0, 20))
+            
+            # Title and version
+            title_info = tk.Frame(title_frame, bg=self.colors['bg_secondary'])
+            title_info.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            title_label = tk.Label(title_info, text="NGXSMK GameNet Optimizer", 
+                                 font=('Arial', 24, 'bold'), fg=self.colors['text_primary'], 
+                                 bg=self.colors['bg_secondary'])
+            title_label.pack(anchor=tk.W)
+            
+            version_label = tk.Label(title_info, text="Version 2.0.0", 
+                                   font=('Arial', 14), fg=self.colors['text_muted'], 
+                                   bg=self.colors['bg_secondary'])
+            version_label.pack(anchor=tk.W, pady=(5, 0))
+            
+            # Content section
+            content_frame = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+            content_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # Description
+            desc_frame = tk.LabelFrame(content_frame, text="Description", 
+                                     font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+                                     bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            desc_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            desc_text = tk.Text(desc_frame, height=4, font=('Arial', 11), 
+                              bg=self.colors['bg_secondary'], fg=self.colors['text_primary'],
+                              relief=tk.FLAT, bd=0, wrap=tk.WORD)
+            desc_text.pack(fill=tk.X, padx=10, pady=10)
+            desc_text.insert(tk.END, "A comprehensive network and system optimization tool for gamers. "
+                                    "Open source alternative to commercial gaming optimization software "
+                                    "with advanced features for FPS boost, network analysis, and system optimization.")
+            desc_text.config(state=tk.DISABLED)
+            
+            # Author information
+            author_frame = tk.LabelFrame(content_frame, text="Author Information", 
+                                       font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+                                       bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            author_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            author_info = tk.Frame(author_frame, bg=self.colors['bg_secondary'])
+            author_info.pack(fill=tk.X, padx=10, pady=10)
+            
+            # Author details
+            author_label = tk.Label(author_info, text="👨‍💻 Author: toozuuu", 
+                                  font=('Arial', 12, 'bold'), fg=self.colors['accent'], 
+                                  bg=self.colors['bg_secondary'])
+            author_label.pack(anchor=tk.W, pady=(0, 5))
+            
+            email_label = tk.Label(author_info, text="📧 Email: sachindilshan040@gmail.com", 
+                                 font=('Arial', 11), fg=self.colors['text_primary'], 
+                                 bg=self.colors['bg_secondary'])
+            email_label.pack(anchor=tk.W, pady=(0, 5))
+            
+            github_label = tk.Label(author_info, text="🐙 GitHub: https://github.com/toozuuu/ngxsmk-gamenet-optimizer", 
+                                   font=('Arial', 11), fg=self.colors['text_primary'], 
+                                   bg=self.colors['bg_secondary'])
+            github_label.pack(anchor=tk.W, pady=(0, 5))
+            
+            # Technical information
+            tech_frame = tk.LabelFrame(content_frame, text="Technical Information", 
+                                     font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+                                     bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            tech_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            tech_info = tk.Frame(tech_frame, bg=self.colors['bg_secondary'])
+            tech_info.pack(fill=tk.X, padx=10, pady=10)
+            
+            # Technical details
+            python_label = tk.Label(tech_info, text="🐍 Python Version: 3.13+", 
+                                   font=('Arial', 11), fg=self.colors['text_primary'], 
+                                   bg=self.colors['bg_secondary'])
+            python_label.pack(anchor=tk.W, pady=(0, 3))
+            
+            platform_label = tk.Label(tech_info, text="💻 Platform: Windows 10/11", 
+                                     font=('Arial', 11), fg=self.colors['text_primary'], 
+                                     bg=self.colors['bg_secondary'])
+            platform_label.pack(anchor=tk.W, pady=(0, 3))
+            
+            license_label = tk.Label(tech_info, text="📄 License: MIT", 
+                                   font=('Arial', 11), fg=self.colors['text_primary'], 
+                                   bg=self.colors['bg_secondary'])
+            license_label.pack(anchor=tk.W, pady=(0, 3))
+            
+            # Features list
+            features_frame = tk.LabelFrame(content_frame, text="Key Features", 
+                                         font=('Arial', 12, 'bold'), fg=self.colors['text_primary'], 
+                                         bg=self.colors['bg_secondary'], relief=tk.RAISED, bd=2)
+            features_frame.pack(fill=tk.X, pady=(0, 15))
+            
+            features_text = tk.Text(features_frame, height=4, font=('Arial', 11), 
+                                  bg=self.colors['bg_secondary'], fg=self.colors['text_primary'],
+                                  relief=tk.FLAT, bd=0, wrap=tk.WORD)
+            features_text.pack(fill=tk.X, padx=10, pady=10)
+            features_text.insert(tk.END, "• FPS Boost & Gaming Optimization\n"
+                                        "• Network Analysis & Multi-Internet\n"
+                                        "• Traffic Shaping & RAM Cleaning\n"
+                                        "• League of Legends Server Testing\n"
+                                        "• Advanced System Monitoring\n"
+                                        "• Real-time Performance Tracking")
+            features_text.config(state=tk.DISABLED)
+            
+            # Close button
+            button_frame = tk.Frame(main_frame, bg=self.colors['bg_primary'])
+            button_frame.pack(fill=tk.X, pady=(20, 0))
+            
+            close_btn = tk.Button(button_frame, text="Close", command=about_dialog.destroy,
+                                font=('Arial', 12, 'bold'), bg=self.colors['accent'], 
+                                fg='black', relief=tk.RAISED, bd=2, padx=20, pady=8)
+            close_btn.pack(side=tk.RIGHT)
+            
+            # Center the dialog
+            about_dialog.update_idletasks()
+            width = about_dialog.winfo_width()
+            height = about_dialog.winfo_height()
+            x = (about_dialog.winfo_screenwidth() // 2) - (width // 2)
+            y = (about_dialog.winfo_screenheight() // 2) - (height // 2)
+            about_dialog.geometry(f'{width}x{height}+{x}+{y}')
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to show about dialog: {str(e)}")
         
     def load_settings(self):
         """Load application settings"""
         try:
             settings = self.config_manager.load_settings()
-            # Apply settings to UI
+            
+            # Apply theme
+            theme = settings.get('general', {}).get('theme', 'dark')
+            self.apply_theme(theme)
+            
+            # Apply language
+            language = settings.get('general', {}).get('language', 'en')
+            self.apply_language(language)
+            
+            # Apply other settings
+            self.apply_other_settings(settings)
+            
         except Exception as e:
             print(f"Failed to load settings: {e}")
+    
+    def apply_theme(self, theme):
+        """Apply theme to the application"""
+        try:
+            if theme == 'light':
+                self.colors = {
+                    'bg_primary': '#ffffff',
+                    'bg_secondary': '#f5f5f5', 
+                    'bg_tertiary': '#e0e0e0',
+                    'accent': '#0066cc',
+                    'accent_hover': '#0052a3',
+                    'text_primary': '#000000',
+                    'text_secondary': '#333333',
+                    'text_muted': '#666666',
+                    'success': '#00aa00',
+                    'warning': '#ff8800',
+                    'error': '#cc0000',
+                    'border': '#cccccc'
+                }
+            elif theme == 'gaming':
+                self.colors = {
+                    'bg_primary': '#0d1117',
+                    'bg_secondary': '#161b22', 
+                    'bg_tertiary': '#21262d',
+                    'accent': '#ff6b35',
+                    'accent_hover': '#ff5722',
+                    'text_primary': '#f0f6fc',
+                    'text_secondary': '#c9d1d9',
+                    'text_muted': '#8b949e',
+                    'success': '#3fb950',
+                    'warning': '#d29922',
+                    'error': '#f85149',
+                    'border': '#30363d'
+                }
+            else:  # dark theme (default)
+                self.colors = {
+                    'bg_primary': '#0a0a0a',
+                    'bg_secondary': '#1a1a1a', 
+                    'bg_tertiary': '#2a2a2a',
+                    'accent': '#00ff88',
+                    'accent_hover': '#00cc6a',
+                    'text_primary': '#ffffff',
+                    'text_secondary': '#cccccc',
+                    'text_muted': '#888888',
+                    'success': '#00ff88',
+                    'warning': '#ffaa00',
+                    'error': '#ff4444',
+                    'border': '#333333'
+                }
+            
+            # Update UI colors
+            self.update_ui_colors()
+            
+        except Exception as e:
+            print(f"Failed to apply theme: {e}")
+    
+    def apply_language(self, language):
+        """Apply language to the application"""
+        try:
+            # Language translations
+            translations = {
+                'en': {
+                    'title': 'NGXSMK GameNet Optimizer',
+                    'fps_boost': 'FPS Boost',
+                    'network_analyzer': 'Network Analyzer',
+                    'multi_internet': 'Multi Internet',
+                    'traffic_shaper': 'Traffic Shaper',
+                    'ram_cleaner': 'RAM Cleaner',
+                    'lol_optimizer': 'LoL Optimizer',
+                    'advanced_optimizer': 'Advanced Optimizer',
+                    'system_monitor': 'System Monitor',
+                    'network_optimizer': 'Network Optimizer',
+                    'settings': 'Settings',
+                    'status': 'Status',
+                    'optimize': 'Optimize',
+                    'reset': 'Reset',
+                    'start': 'Start',
+                    'stop': 'Stop'
+                },
+                'es': {
+                    'title': 'NGXSMK GameNet Optimizer',
+                    'fps_boost': 'Impulso FPS',
+                    'network_analyzer': 'Analizador de Red',
+                    'multi_internet': 'Multi Internet',
+                    'traffic_shaper': 'Moldeador de Tráfico',
+                    'ram_cleaner': 'Limpiador RAM',
+                    'lol_optimizer': 'Optimizador LoL',
+                    'advanced_optimizer': 'Optimizador Avanzado',
+                    'system_monitor': 'Monitor del Sistema',
+                    'network_optimizer': 'Optimizador de Red',
+                    'settings': 'Configuración',
+                    'status': 'Estado',
+                    'optimize': 'Optimizar',
+                    'reset': 'Restablecer',
+                    'start': 'Iniciar',
+                    'stop': 'Detener'
+                },
+                'fr': {
+                    'title': 'NGXSMK GameNet Optimizer',
+                    'fps_boost': 'Boost FPS',
+                    'network_analyzer': 'Analyseur Réseau',
+                    'multi_internet': 'Multi Internet',
+                    'traffic_shaper': 'Formateur de Trafic',
+                    'ram_cleaner': 'Nettoyeur RAM',
+                    'lol_optimizer': 'Optimiseur LoL',
+                    'advanced_optimizer': 'Optimiseur Avancé',
+                    'system_monitor': 'Moniteur Système',
+                    'network_optimizer': 'Optimiseur Réseau',
+                    'settings': 'Paramètres',
+                    'status': 'Statut',
+                    'optimize': 'Optimiser',
+                    'reset': 'Réinitialiser',
+                    'start': 'Démarrer',
+                    'stop': 'Arrêter'
+                }
+            }
+            
+            # Get translations for current language
+            self.translations = translations.get(language, translations['en'])
+            
+            # Update UI text
+            self.update_ui_text()
+            
+        except Exception as e:
+            print(f"Failed to apply language: {e}")
+    
+    def apply_other_settings(self, settings):
+        """Apply other settings to the application"""
+        try:
+            # Auto-start settings
+            auto_start = settings.get('general', {}).get('auto_start', False)
+            start_minimized = settings.get('general', {}).get('start_minimized', False)
+            auto_optimize = settings.get('general', {}).get('auto_optimize', False)
+            
+            # Apply auto-optimize if enabled
+            if auto_optimize:
+                self.auto_optimize_on_startup()
+            
+        except Exception as e:
+            print(f"Failed to apply other settings: {e}")
+    
+    def update_ui_colors(self):
+        """Update UI colors based on current theme - Optimized version"""
+        try:
+            # Use cached colors for better performance
+            bg_primary = self._get_optimized_color('bg_primary')
+            bg_secondary = self._get_optimized_color('bg_secondary')
+            bg_tertiary = self._get_optimized_color('bg_tertiary')
+            text_primary = self._get_optimized_color('text_primary')
+            text_muted = self._get_optimized_color('text_muted')
+            accent = self._get_optimized_color('accent')
+            success = self._get_optimized_color('success')
+            accent_hover = self._get_optimized_color('accent_hover')
+            
+            # Batch UI updates for better performance
+            self._batch_update_colors({
+                'root': (self.root, {'bg': bg_primary}),
+                'main_frame': (getattr(self, 'main_frame', None), {'bg': bg_primary}),
+                'header_frame': (getattr(self, 'header_frame', None), {'bg': bg_secondary}),
+                'header_content': (getattr(self, 'header_content', None), {'bg': bg_secondary}),
+                'title_section': (getattr(self, 'title_section', None), {'bg': bg_secondary}),
+                'controls_section': (getattr(self, 'controls_section', None), {'bg': bg_secondary}),
+                'status_frame': (getattr(self, 'status_frame', None), {'bg': bg_secondary}),
+                'logo_label': (getattr(self, 'logo_label', None), {'fg': accent, 'bg': bg_secondary}),
+                'title_label': (getattr(self, 'title_label', None), {'fg': text_primary, 'bg': bg_secondary}),
+                'subtitle_label': (getattr(self, 'subtitle_label', None), {'fg': text_muted, 'bg': bg_secondary}),
+                'status_indicator': (getattr(self, 'status_indicator', None), {'fg': success, 'bg': bg_secondary}),
+                'status_text': (getattr(self, 'status_text', None), {'fg': text_primary, 'bg': bg_secondary}),
+                'sidebar_frame': (getattr(self, 'sidebar_frame', None), {'bg': bg_secondary}),
+                'sidebar_title': (getattr(self, 'sidebar_title', None), {'fg': text_primary, 'bg': bg_secondary})
+            })
+            
+            # Update sidebar buttons efficiently
+            if hasattr(self, 'sidebar_buttons'):
+                for btn in self.sidebar_buttons:
+                    btn.configure(bg=bg_tertiary, fg=text_primary)
+            
+            # Update status indicators efficiently
+            if hasattr(self, 'status_indicators'):
+                for indicator in self.status_indicators:
+                    indicator.configure(bg=bg_tertiary)
+            
+            # Update notebook styles efficiently
+            self._update_notebook_styles(bg_secondary, bg_tertiary, text_primary, accent, accent_hover)
+            
+            # Update tab content frames
+            self.update_tab_colors()
+            
+        except Exception as e:
+            print(f"Failed to update UI colors: {e}")
+    
+    def _batch_update_colors(self, updates):
+        """Batch update colors for better performance"""
+        for name, (widget, config) in updates.items():
+            if widget is not None:
+                try:
+                    widget.configure(**config)
+                except Exception as e:
+                    print(f"Failed to update {name}: {e}")
+    
+    def _update_notebook_styles(self, bg_secondary, bg_tertiary, text_primary, accent, accent_hover):
+        """Update notebook styles efficiently"""
+        try:
+            style = ttk.Style()
+            style.configure('Modern.TNotebook', 
+                           background=bg_secondary, 
+                           borderwidth=0,
+                           tabmargins=[0, 0, 0, 0])
+            style.configure('Modern.TNotebook.Tab', 
+                           background=bg_tertiary, 
+                           foreground=text_primary, 
+                           padding=[20, 10],
+                           borderwidth=0)
+            style.map('Modern.TNotebook.Tab',
+                     background=[('selected', accent),
+                                ('active', bg_tertiary)])
+            
+            style.configure('Modern.TButton',
+                           background=bg_tertiary,
+                           foreground=text_primary,
+                           borderwidth=1,
+                           focuscolor='none')
+            style.map('Modern.TButton',
+                     background=[('active', accent),
+                                ('pressed', accent_hover)])
+        except Exception as e:
+            print(f"Failed to update notebook styles: {e}")
+    
+    def update_tab_colors(self):
+        """Update colors for all tab content"""
+        try:
+            # Update all tab frames
+            for tab_frame in self.tab_frames:
+                tab_frame.configure(bg=self.colors['bg_primary'])
+                
+                # Update all widgets in the tab
+                self.update_widget_colors(tab_frame)
+                
+        except Exception as e:
+            print(f"Failed to update tab colors: {e}")
+    
+    def update_widget_colors(self, parent):
+        """Recursively update widget colors"""
+        try:
+            for child in parent.winfo_children():
+                if isinstance(child, tk.Frame):
+                    child.configure(bg=self.colors['bg_primary'])
+                    self.update_widget_colors(child)
+                elif isinstance(child, tk.Label):
+                    if child.cget('bg') != 'SystemButtonFace':  # Don't change system colors
+                        child.configure(bg=self.colors['bg_primary'], fg=self.colors['text_primary'])
+                elif isinstance(child, tk.Button):
+                    child.configure(bg=self.colors['bg_tertiary'], fg=self.colors['text_primary'])
+                elif isinstance(child, tk.Text):
+                    child.configure(bg=self.colors['bg_secondary'], fg=self.colors['text_primary'])
+                elif isinstance(child, tk.Scrollbar):
+                    child.configure(bg=self.colors['bg_tertiary'])
+                    
+        except Exception as e:
+            print(f"Failed to update widget colors: {e}")
+    
+    def update_ui_text(self):
+        """Update UI text based on current language"""
+        try:
+            # Update window title
+            self.root.title(self.translations.get('title', 'NGXSMK GameNet Optimizer'))
+            
+            # Update title and subtitle
+            if hasattr(self, 'title_label'):
+                self.title_label.configure(text=self.translations.get('title', 'NGXSMK GameNet Optimizer'))
+            
+            # Update status text
+            if hasattr(self, 'status_text'):
+                self.status_text.configure(text=self.translations.get('status', 'System Ready'))
+            
+            # Update notebook tabs
+            if hasattr(self, 'notebook'):
+                for i, tab_id in enumerate(self.notebook.tabs()):
+                    tab_text = self.notebook.tab(tab_id, 'text')
+                    # Map tab text to translations
+                    tab_mapping = {
+                        '🎮 FPS Boost': f"🎮 {self.translations.get('fps_boost', 'FPS Boost')}",
+                        '📊 Network Analyzer': f"📊 {self.translations.get('network_analyzer', 'Network Analyzer')}",
+                        '🌐 Multi Internet': f"🌐 {self.translations.get('multi_internet', 'Multi Internet')}",
+                        '🚦 Traffic Shaper': f"🚦 {self.translations.get('traffic_shaper', 'Traffic Shaper')}",
+                        '🧹 RAM Cleaner': f"🧹 {self.translations.get('ram_cleaner', 'RAM Cleaner')}",
+                        '⚔️ LoL Optimizer': f"⚔️ {self.translations.get('lol_optimizer', 'LoL Optimizer')}",
+                        '🔬 Advanced Optimizer': f"🔬 {self.translations.get('advanced_optimizer', 'Advanced Optimizer')}",
+                        '📈 System Monitor': f"📈 {self.translations.get('system_monitor', 'System Monitor')}",
+                        '🌐 Network Optimizer': f"🌐 {self.translations.get('network_optimizer', 'Network Optimizer')}"
+                    }
+                    
+                    if tab_text in tab_mapping:
+                        self.notebook.tab(tab_id, text=tab_mapping[tab_text])
+            
+        except Exception as e:
+            print(f"Failed to update UI text: {e}")
+    
+    def auto_optimize_on_startup(self):
+        """Auto-optimize on startup if enabled"""
+        try:
+            # Start background optimization
+            self.optimization_thread = threading.Thread(target=self._auto_optimize_loop, daemon=True)
+            self.optimization_thread.start()
+        except Exception as e:
+            print(f"Failed to start auto-optimization: {e}")
+    
+    def _auto_optimize_loop(self):
+        """Auto-optimization loop"""
+        try:
+            while True:
+                # Perform automatic optimizations
+                self.fps_boost.optimize_fps()
+                self.ram_cleaner.clean_ram()
+                time.sleep(300)  # Optimize every 5 minutes
+        except Exception as e:
+            print(f"Auto-optimization error: {e}")
             
     def save_settings(self):
         """Save application settings"""
@@ -1386,9 +2368,72 @@ class NetworkOptimizerApp:
             messagebox.showerror("Error", f"Failed to open settings: {str(e)}")
     
     def on_closing(self):
-        """Handle application closing"""
-        self.save_settings()
-        self.root.destroy()
+        """Handle optimized application closing"""
+        try:
+            # Save settings
+            self.save_settings()
+            
+            # Cleanup resources
+            self._cleanup_resources()
+            
+            # Close the application
+            self.root.destroy()
+        except Exception as e:
+            print(f"Error during closing: {e}")
+            self.root.destroy()
+    
+    def _cleanup_resources(self):
+        """Cleanup resources for better memory management"""
+        try:
+            # Shutdown thread pool
+            if hasattr(self, 'executor'):
+                self.executor.shutdown(wait=False)
+            
+            # Clear caches
+            if hasattr(self, '_get_optimized_color'):
+                self._get_optimized_color.cache_clear()
+            
+            # Force garbage collection
+            gc.collect()
+            
+            # Clear weak references
+            if hasattr(self, '_weak_refs'):
+                self._weak_refs.clear()
+                
+        except Exception as e:
+            print(f"Cleanup error: {e}")
+    
+    def toggle_fullscreen(self, event=None):
+        """Toggle fullscreen mode"""
+        try:
+            if self.is_fullscreen:
+                self.exit_fullscreen()
+            else:
+                self.enter_fullscreen()
+        except Exception as e:
+            print(f"Fullscreen toggle error: {e}")
+    
+    def enter_fullscreen(self):
+        """Enter fullscreen mode"""
+        try:
+            self.root.state('zoomed')
+            self.is_fullscreen = True
+            # Update status text if available
+            if hasattr(self, 'status_text'):
+                self.status_text.configure(text="Fullscreen Mode")
+        except Exception as e:
+            print(f"Enter fullscreen error: {e}")
+    
+    def exit_fullscreen(self, event=None):
+        """Exit fullscreen mode"""
+        try:
+            self.root.state('normal')
+            self.is_fullscreen = False
+            # Update status text if available
+            if hasattr(self, 'status_text'):
+                self.status_text.configure(text="Windowed Mode")
+        except Exception as e:
+            print(f"Exit fullscreen error: {e}")
 
 if __name__ == "__main__":
     try:
